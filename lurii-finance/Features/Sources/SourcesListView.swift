@@ -35,7 +35,7 @@ struct SourcesListView: View {
                 List {
                     ForEach(viewModel.sources) { source in
                         HStack {
-                            if let iconName = sourceIconName(for: source.type) {
+                            if let iconName = source.type.sourceIconName() {
                                 Image(iconName)
                                     .resizable()
                                     .scaledToFill()
@@ -81,31 +81,6 @@ struct SourcesListView: View {
         }
         .sheet(item: $selectedSource) { source in
             SourceDetailSheet(source: source)
-        }
-    }
-
-    private func sourceIconName(for sourceType: String) -> String? {
-        switch sourceType.lowercased() {
-        case "okx":
-            return "okx"
-        case "binance":
-            return "binance"
-        case "binance_th":
-            return "binance_th"
-        case "bybit":
-            return "bybit"
-        case "lobstr":
-            return "lobstr"
-        case "wise":
-            return "wise"
-        case "kbank":
-            return "kbank"
-        case "ibkr":
-            return "ibkr"
-        case "blend":
-            return "blend"
-        default:
-            return nil
         }
     }
 }

@@ -177,7 +177,7 @@ struct DashboardView: View {
     @ViewBuilder
     private func sourceCell(sources: [SourceAllocation], asset: String) -> some View {
         let items: [SourceIconItem] = sources.compactMap { source in
-            guard let iconName = sourceIconName(for: source.source) else { return nil }
+            guard let iconName = source.source.sourceIconName() else { return nil }
             let valueText = ValueFormatters.currency(from: source.usdValue, code: "usd") ?? source.usdValue ?? "—"
             let amountText = source.amount ?? "—"
             let tooltip = "\(asset)\n\(amountText)\n\(valueText)"
@@ -188,31 +188,6 @@ struct DashboardView: View {
         } else {
             SourceIconsPopover(items: items)
                 .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-
-    private func sourceIconName(for source: String) -> String? {
-        switch source.lowercased() {
-        case "okx":
-            return "okx"
-        case "binance":
-            return "binance"
-        case "binance_th":
-            return "binance_th"
-        case "bybit":
-            return "bybit"
-        case "lobstr":
-            return "lobstr"
-        case "wise":
-            return "wise"
-        case "kbank":
-            return "kbank"
-        case "ibkr":
-            return "ibkr"
-        case "blend":
-            return "blend"
-        default:
-            return nil
         }
     }
 

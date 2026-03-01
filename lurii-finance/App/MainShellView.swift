@@ -6,12 +6,32 @@ struct MainShellView: View {
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
-            List(AppState.AppSection.allCases, selection: $appState.selectedSection) { section in
-                Label(section.title, systemImage: section.systemImage)
-                    .tag(section)
+            VStack(spacing: 0) {
+                // App icon header
+                HStack(spacing: 12) {
+                    Image(nsImage: NSImage(named: "AppIcon") ?? NSImage())
+                        .resizable()
+                        .frame(width: 32, height: 32)
+                        .clipShape(RoundedRectangle(cornerRadius: 7))
+                    
+                    Text("Lurii Finance")
+                        .font(.headline)
+                    
+                    Spacer()
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(Color(nsColor: .windowBackgroundColor))
+                
+                Divider()
+                
+                List(AppState.AppSection.allCases, selection: $appState.selectedSection) { section in
+                    Label(section.title, systemImage: section.systemImage)
+                        .tag(section)
+                }
+                .listStyle(.sidebar)
             }
-            .listStyle(.sidebar)
-            .navigationTitle("Lurii Finance")
+            .navigationTitle("")
             .toolbarTitleDisplayMode(.inline)
             .frame(minWidth: 200, idealWidth: 220, maxWidth: 260)
         } detail: {
@@ -23,8 +43,6 @@ struct MainShellView: View {
                     EarnSummaryView()
                 case .sources:
                     SourcesListView()
-                case .activity:
-                    ActivityFeedView()
                 case .reports:
                     WeeklyReportView()
                 case .settings:

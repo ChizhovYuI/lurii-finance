@@ -19,11 +19,6 @@ struct WeeklyReportView: View {
                     viewModel.generate()
                 }
                 .buttonStyle(.bordered)
-
-                Button("Send") {
-                    viewModel.notify()
-                }
-                .buttonStyle(.borderedProminent)
             }
 
             if viewModel.isLoading {

@@ -2,25 +2,22 @@ import SwiftUI
 
 struct SettingsRootView: View {
     enum Section: String, CaseIterable, Identifiable {
-        case general
+        case about
         case ai
-        case advanced
 
         var id: String { rawValue }
 
         var title: String {
             switch self {
-            case .general:
-                return "General"
+            case .about:
+                return "About"
             case .ai:
                 return "AI"
-            case .advanced:
-                return "Advanced"
             }
         }
     }
 
-    @State private var selectedSection: Section = .general
+    @State private var selectedSection: Section = .about
 
     var body: some View {
         HStack(spacing: 0) {
@@ -35,12 +32,10 @@ struct SettingsRootView: View {
 
             Group {
                 switch selectedSection {
-                case .general:
-                    SettingsPlaceholderView(title: "General Settings")
+                case .about:
+                    AboutView()
                 case .ai:
                     AISettingsView()
-                case .advanced:
-                    SettingsPlaceholderView(title: "Advanced Settings")
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -49,14 +44,36 @@ struct SettingsRootView: View {
     }
 }
 
-private struct SettingsPlaceholderView: View {
-    let title: String
-
+private struct AboutView: View {
     var body: some View {
-        VStack {
-            EmptyStateView(title: title, message: "Configuration options will appear here.")
+        VStack(spacing: 20) {
+            // Note: Add an image set named "app-logo" to Assets.xcassets
+            Image("app-logo")
+                .resizable()
+                .frame(width: 128, height: 128)
+                .clipShape(RoundedRectangle(cornerRadius: 28))
+                .shadow(color: .black.opacity(0.2), radius: 10, x: 0, y: 5)
+            
+            Text("Lurii Finance")
+                .font(.title)
+                .fontWeight(.semibold)
+            
+            if let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String,
+               let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String {
+                Text("Version \(version) (\(build))")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            
+            Text("Portfolio management and tracking")
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            
+            Spacer()
         }
-        .padding(24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(48)
     }
 }
 

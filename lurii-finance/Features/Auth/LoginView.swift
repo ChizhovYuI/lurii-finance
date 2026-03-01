@@ -3,6 +3,7 @@ import SwiftUI
 struct LoginView: View {
     @EnvironmentObject private var appState: AppState
     @State private var isChecking = false
+    @State private var statusMessage: String?
     @State private var errorMessage: String?
 
     private var isPreview: Bool {
@@ -15,7 +16,7 @@ struct LoginView: View {
                 .font(.title2)
 
             if isChecking {
-                ProgressView("Checking health...")
+                ProgressView(statusMessage ?? "Checking health...")
             } else if let errorMessage {
                 Text(errorMessage)
                     .foregroundStyle(.red)
@@ -43,20 +44,50 @@ struct LoginView: View {
         guard !isChecking else { return }
         isChecking = true
         errorMessage = nil
+        statusMessage = "Checking health..."
 
         Task {
+            // First attempt
+            if await tryConnect() { return }
+
+            // Health check failed — try starting the daemon
+            statusMessage = "Starting daemon..."
             do {
-                let health = try await APIClient.shared.getHealth()
-                appState.updateFromHealth(health)
-                let collectStatus = try await APIClient.shared.getCollectStatus()
-                appState.updateCollectStatus(collectStatus)
+                try await DaemonLauncher.ensureRunning()
             } catch {
-                appState.markDisconnected()
-                let description = (error as NSError).localizedDescription
-                errorMessage = "Unable to reach daemon. \(description)"
+                fail("Failed to start daemon. \(error.localizedDescription)")
+                return
             }
-            isChecking = false
+
+            // Give daemon time to boot
+            try? await Task.sleep(for: .seconds(2))
+
+            // Retry
+            statusMessage = "Connecting..."
+            if await tryConnect() { return }
+
+            fail("Daemon started but not responding. Check pfm daemon status.")
         }
+    }
+
+    /// Attempts health + collect-status. Returns `true` on success.
+    private func tryConnect() async -> Bool {
+        do {
+            let health = try await APIClient.shared.getHealth()
+            appState.updateFromHealth(health)
+            let collectStatus = try await APIClient.shared.getCollectStatus()
+            appState.updateCollectStatus(collectStatus)
+            isChecking = false
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    private func fail(_ message: String) {
+        appState.markDisconnected()
+        errorMessage = message
+        isChecking = false
     }
 }
 

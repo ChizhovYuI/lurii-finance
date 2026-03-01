@@ -41,6 +41,12 @@ struct AISettingsView: View {
         .onChange(of: viewModel.selectedProviderType) { _, newValue in
             applyProviderSelection(type: newValue)
         }
+        .onChange(of: viewModel.isLoading) { _, isLoading in
+            // When loading finishes, refresh the form fields with updated data
+            if !isLoading {
+                applyProviderSelection(type: viewModel.selectedProviderType)
+            }
+        }
     }
 
     private var formView: some View {
@@ -91,7 +97,10 @@ struct AISettingsView: View {
                     }
                 }
             }
-            fieldsToSend = fieldsToSend.filter { !$0.value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            
+            // Debug: Print what we're about to send
+            print("📤 Fields to send:", fieldsToSend)
+            
             guard !fieldsToSend.isEmpty else {
                 statusMessage = "No changes"
                 return
@@ -102,7 +111,14 @@ struct AISettingsView: View {
             )
             statusMessage = success ? "Saved" : "Save failed"
             if success {
-                applyProviderSelection(type: viewModel.selectedProviderType)
+                // Clear secret fields from fieldValues after successful save
+                if let meta = viewModel.providerMeta(for: viewModel.selectedProviderType) {
+                    for field in meta.fields where field.secret == true {
+                        fieldValues[field.name] = ""
+                    }
+                }
+                // Reload the settings to get the updated config from the server
+                viewModel.load()
             }
         }
     }
@@ -299,13 +315,27 @@ struct AISettingsView: View {
 
     private func valueToSend(field: AIProviderField, config: AIProviderConfig?) -> String? {
         let value = fieldValues[field.name, default: ""].trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        print("🔍 Field: \(field.name), isSecret: \(field.secret ?? false), fieldValue: '\(value)', configured: '\(configuredValue(for: field.name, config: config) ?? "nil")'")
+        
+        // For secret fields that are empty, don't send them at all (let backend preserve)
+        if value.isEmpty && field.secret == true {
+            print("  ➡️ Skipping empty secret field")
+            return nil
+        }
+        
+        // For non-secret fields or filled secret fields, check if changed
         if value.isEmpty {
+            print("  ➡️ Skipping empty field")
             return nil
         }
         if let currentValue = configuredValue(for: field.name, config: config),
            currentValue == value {
+            print("  ➡️ Skipping unchanged field")
             return nil
         }
+        
+        print("  ✅ Sending: '\(value)'")
         return value
     }
 

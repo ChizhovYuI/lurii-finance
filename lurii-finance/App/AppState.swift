@@ -13,7 +13,6 @@ final class AppState: ObservableObject {
         case dashboard
         case earn
         case sources
-        case activity
         case reports
         case settings
 
@@ -27,8 +26,6 @@ final class AppState: ObservableObject {
                 return "Earn"
             case .sources:
                 return "Sources"
-            case .activity:
-                return "Activity"
             case .reports:
                 return "Reports"
             case .settings:
@@ -44,8 +41,6 @@ final class AppState: ObservableObject {
                 return "percent"
             case .sources:
                 return "tray.full"
-            case .activity:
-                return "clock.arrow.circlepath"
             case .reports:
                 return "doc.text"
             case .settings:

@@ -122,7 +122,7 @@ struct EarnSummaryView: View {
 
     @ViewBuilder
     private func sourceCell(_ source: String) -> some View {
-        if let iconName = sourceIconName(for: source) {
+        if let iconName = source.sourceIconName() {
             Image(iconName)
                 .resizable()
                 .scaledToFill()
@@ -137,31 +137,6 @@ struct EarnSummaryView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
         } else {
             rowCell(source)
-        }
-    }
-
-    private func sourceIconName(for source: String) -> String? {
-        switch source.lowercased() {
-        case "okx":
-            return "okx"
-        case "binance":
-            return "binance"
-        case "binance_th":
-            return "binance_th"
-        case "bybit":
-            return "bybit"
-        case "lobstr":
-            return "lobstr"
-        case "wise":
-            return "wise"
-        case "kbank":
-            return "kbank"
-        case "ibkr":
-            return "ibkr"
-        case "blend":
-            return "blend"
-        default:
-            return nil
         }
     }
 }
