@@ -179,7 +179,7 @@ struct DashboardView: View {
         let items: [SourceIconItem] = sources.compactMap { source in
             guard let iconName = source.source.sourceIconName() else { return nil }
             let valueText = ValueFormatters.currency(from: source.usdValue, code: "usd") ?? source.usdValue ?? "—"
-            let amountText = source.amount ?? "—"
+            let amountText = ValueFormatters.number(from: source.amount) ?? source.amount ?? "—"
             let tooltip = "\(asset)\n\(amountText)\n\(valueText)"
             return SourceIconItem(iconName: iconName, tooltip: tooltip)
         }
