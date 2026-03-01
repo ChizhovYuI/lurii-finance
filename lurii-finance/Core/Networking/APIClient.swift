@@ -1,0 +1,213 @@
+import Foundation
+
+enum APIError: Error {
+    case invalidResponse
+    case httpStatus(Int)
+}
+
+struct APIClient {
+    static let shared = APIClient()
+
+    private let decoder: JSONDecoder
+    private let encoder: JSONEncoder
+
+    init() {
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        self.decoder = decoder
+
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        self.encoder = encoder
+    }
+
+    func getHealth() async throws -> HealthResponse {
+        try await request(path: APIEndpoints.health, method: "GET")
+    }
+
+    func getSourceTypes() async throws -> [String: [SourceTypeField]] {
+        try await request(path: APIEndpoints.sourceTypes, method: "GET")
+    }
+
+    func getSources() async throws -> [SourceDTO] {
+        try await request(path: APIEndpoints.sources, method: "GET")
+    }
+
+    func createSource(_ requestBody: SourceCreateRequest) async throws {
+        _ = try await requestVoid(path: APIEndpoints.sources, method: "POST", body: requestBody)
+    }
+
+    func deleteSource(name: String) async throws {
+        _ = try await requestVoid(path: APIEndpoints.sourceDetail(name), method: "DELETE")
+    }
+
+    func patchSource(name: String, body: SourcePatchRequest) async throws {
+        _ = try await requestVoid(path: APIEndpoints.sourceDetail(name), method: "PATCH", body: body)
+    }
+
+    func getPortfolioSummary() async throws -> PortfolioSummary {
+        try await request(path: APIEndpoints.portfolioSummary, method: "GET")
+    }
+
+    func getHoldings() async throws -> HoldingsResponse {
+        try await request(path: APIEndpoints.portfolioHoldings, method: "GET")
+    }
+
+    func getPnl(period: String) async throws -> PnlResponse {
+        let url = APIEndpoints.url(path: APIEndpoints.pnl, queryItems: [URLQueryItem(name: "period", value: period)])
+        return try await request(url: url, method: "GET")
+    }
+
+    func getAllocation() async throws -> AllocationResponse {
+        try await request(path: APIEndpoints.allocation, method: "GET")
+    }
+
+    func getExposure() async throws -> ExposureResponse {
+        try await request(path: APIEndpoints.exposure, method: "GET")
+    }
+
+    func getEarnSummary() async throws -> EarnSummaryResponse {
+        try await request(path: APIEndpoints.earnSummary, method: "GET")
+    }
+
+    func getAICommentary() async throws -> AICommentary {
+        let url = APIEndpoints.url(path: APIEndpoints.aiCommentary)
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+
+        switch httpResponse.statusCode {
+        case 200...299:
+            if let commentary = try? decoder.decode(AICommentary.self, from: data) {
+                return commentary
+            }
+            if let errorResponse = try? decoder.decode(ErrorMessageResponse.self, from: data) {
+                return AICommentary(date: "", text: "", model: nil, error: errorResponse.error)
+            }
+            throw APIError.invalidResponse
+        case 404:
+            if let errorResponse = try? decoder.decode(ErrorMessageResponse.self, from: data) {
+                return AICommentary(date: "", text: "", model: nil, error: errorResponse.error)
+            }
+            return AICommentary(date: "", text: "", model: nil, error: "No AI commentary cached")
+        default:
+            throw APIError.httpStatus(httpResponse.statusCode)
+        }
+    }
+
+    func generateAICommentary() async throws -> AICommentary {
+        try await request(path: APIEndpoints.aiCommentary, method: "POST")
+    }
+
+    func getAIConfig() async throws -> AIConfig {
+        try await request(path: APIEndpoints.aiConfig, method: "GET")
+    }
+
+    func updateAIConfig(_ requestBody: AIConfigUpdateRequest) async throws {
+        _ = try await requestVoid(path: APIEndpoints.aiConfig, method: "PUT", body: requestBody)
+    }
+
+    func startCollect(source: String?) async throws -> CollectStartResponse {
+        let body = CollectStartRequest(source: source)
+        return try await request(path: APIEndpoints.collect, method: "POST", body: body)
+    }
+
+    func getCollectStatus() async throws -> CollectStatus {
+        try await request(path: APIEndpoints.collectStatus, method: "GET")
+    }
+
+    func notifyReport() async throws -> NotifyResponse {
+        try await request(path: APIEndpoints.reportNotify, method: "POST")
+    }
+
+    func getSettings() async throws -> SettingsResponse {
+        try await request(path: APIEndpoints.settings, method: "GET")
+    }
+
+    func updateSettings(_ settings: [String: String]) async throws {
+        _ = try await requestVoid(path: APIEndpoints.settings, method: "PUT", body: settings)
+    }
+
+    func upsertAIProviderFields(type: String, fields: [String: String]) async throws {
+        _ = try await requestVoid(path: APIEndpoints.aiProvider(type), method: "PUT", body: fields)
+    }
+
+    func activateAIProvider(type: String) async throws {
+        _ = try await requestVoid(path: APIEndpoints.aiProviderActivate(type), method: "POST")
+    }
+
+    func deactivateAIProvider() async throws {
+        _ = try await requestVoid(path: APIEndpoints.aiProvidersDeactivate, method: "POST")
+    }
+
+    func deleteAIProvider(type: String) async throws {
+        _ = try await requestVoid(path: APIEndpoints.aiProvider(type), method: "DELETE")
+    }
+
+    private func request<T: Decodable>(path: String, method: String, body: Encodable? = nil) async throws -> T {
+        let url = APIEndpoints.url(path: path)
+        return try await request(url: url, method: method, body: body)
+    }
+
+    private func request<T: Decodable>(url: URL, method: String, body: Encodable? = nil) async throws -> T {
+        var request = URLRequest(url: url)
+        request.httpMethod = method
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        if let body {
+            request.httpBody = try encoder.encode(AnyEncodable(body))
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        }
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+        guard (200...299).contains(httpResponse.statusCode) else {
+            throw APIError.httpStatus(httpResponse.statusCode)
+        }
+
+        return try decoder.decode(T.self, from: data)
+    }
+
+    private func requestVoid(path: String, method: String, body: Encodable? = nil) async throws {
+        let url = APIEndpoints.url(path: path)
+        _ = try await requestVoid(url: url, method: method, body: body)
+    }
+
+    private func requestVoid(url: URL, method: String, body: Encodable? = nil) async throws {
+        var request = URLRequest(url: url)
+        request.httpMethod = method
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        if let body {
+            request.httpBody = try encoder.encode(AnyEncodable(body))
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        }
+
+        let (_, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+        guard (200...299).contains(httpResponse.statusCode) else {
+            throw APIError.httpStatus(httpResponse.statusCode)
+        }
+    }
+}
+
+private struct AnyEncodable: Encodable {
+    private let encodeFunc: (Encoder) throws -> Void
+
+    init<T: Encodable>(_ value: T) {
+        encodeFunc = value.encode
+    }
+
+    func encode(to encoder: Encoder) throws {
+        try encodeFunc(encoder)
+    }
+}
