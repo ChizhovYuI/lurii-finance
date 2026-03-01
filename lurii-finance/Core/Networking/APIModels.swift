@@ -16,6 +16,7 @@ struct SourceTypeField: Codable, Identifiable {
     let prompt: String
     let required: Bool
     let secret: Bool
+    let tip: String?
 }
 
 // MARK: - Sources
