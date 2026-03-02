@@ -53,15 +53,17 @@ struct AllocationRow: Codable, Identifiable {
     var id: String { "\(asset)-\(sources.joined(separator: ","))" }
     let asset: String
     let sources: [String]
+    let sourceName: String?
     let amount: String?
     let usdValue: String?
     let price: String?
     let percentage: String?
     let assetType: String?
 
-    init(asset: String, sources: [String], amount: String?, usdValue: String?, price: String?, percentage: String?, assetType: String?) {
+    init(asset: String, sources: [String], sourceName: String? = nil, amount: String?, usdValue: String?, price: String?, percentage: String?, assetType: String?) {
         self.asset = asset
         self.sources = sources
+        self.sourceName = sourceName
         self.amount = amount
         self.usdValue = usdValue
         self.price = price
@@ -73,6 +75,7 @@ struct AllocationRow: Codable, Identifiable {
         case asset
         case source
         case sources
+        case sourceName
         case amount
         case usdValue
         case price
@@ -83,6 +86,7 @@ struct AllocationRow: Codable, Identifiable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         asset = try container.decode(String.self, forKey: .asset)
+        sourceName = try container.decodeIfPresent(String.self, forKey: .sourceName)
         amount = try container.decodeIfPresent(String.self, forKey: .amount)
         usdValue = try container.decodeIfPresent(String.self, forKey: .usdValue)
         price = try container.decodeIfPresent(String.self, forKey: .price)
@@ -101,6 +105,7 @@ struct AllocationRow: Codable, Identifiable {
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(asset, forKey: .asset)
+        try container.encodeIfPresent(sourceName, forKey: .sourceName)
         try container.encodeIfPresent(amount, forKey: .amount)
         try container.encodeIfPresent(usdValue, forKey: .usdValue)
         try container.encodeIfPresent(price, forKey: .price)

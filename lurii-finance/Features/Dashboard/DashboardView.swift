@@ -60,6 +60,14 @@ struct DashboardView: View {
 
             Spacer()
 
+            Button {
+                viewModel.load()
+            } label: {
+                Image(systemName: "arrow.clockwise")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+
             Button("Collect") {
                 Task {
                     _ = try? await APIClient.shared.startCollect(source: nil)
@@ -178,9 +186,10 @@ struct DashboardView: View {
     private func sourceCell(sources: [SourceAllocation], asset: String) -> some View {
         let items: [SourceIconItem] = sources.compactMap { source in
             guard let iconName = source.source.sourceIconName() else { return nil }
+            let displayName = source.sourceName ?? source.source
             let valueText = ValueFormatters.currency(from: source.usdValue, code: "usd") ?? source.usdValue ?? "—"
             let amountText = ValueFormatters.number(from: source.amount) ?? source.amount ?? "—"
-            let tooltip = "\(asset)\n\(amountText)\n\(valueText)"
+            let tooltip = "\(displayName)\n\(asset) \(amountText)\n\(valueText)"
             return SourceIconItem(iconName: iconName, tooltip: tooltip)
         }
         if items.isEmpty {
@@ -192,7 +201,7 @@ struct DashboardView: View {
     }
 
     private func sourcesText(_ sources: [SourceAllocation]) -> String {
-        let joined = sources.map { $0.source }.joined(separator: ", ")
+        let joined = sources.map { $0.sourceName ?? $0.source }.joined(separator: ", ")
         return joined.isEmpty ? "—" : joined
     }
 
@@ -207,61 +216,28 @@ struct DashboardView: View {
     }
 
     private func filteredAllocationRows() -> [AllocationGroupRow] {
-        let rows = groupedAllocationRows()
         let tokens = allocationFilter
             .lowercased()
             .split(whereSeparator: { $0.isWhitespace })
             .map(String.init)
-        guard !tokens.isEmpty else {
-            return rows
-        }
-
-        return rows
-            .map { row -> (AllocationGroupRow, Int) in
-                let haystack = allocationHaystack(for: row)
-                let score = tokens.reduce(0) { partial, token in
-                    partial + tokenScore(token: token, haystack: haystack)
-                }
-                return (row, score)
-            }
-            .filter { $0.1 > 0 }
-            .sorted { lhs, rhs in
-                if lhs.1 != rhs.1 {
-                    return lhs.1 > rhs.1
-                }
-                return lhs.0.asset < rhs.0.asset
-            }
-            .map { $0.0 }
+        return groupedAllocationRows(filter: tokens)
     }
 
-    private func allocationHaystack(for row: AllocationGroupRow) -> [String] {
-        var values: [String] = [row.asset.lowercased()]
-        if !row.sources.isEmpty {
-            values.append(contentsOf: row.sources.map { $0.source.lowercased() })
-        }
-        if let type = row.assetType?.lowercased(), !type.isEmpty {
-            values.append(type)
-        }
-        return values
-    }
+    private func groupedAllocationRows(filter tokens: [String] = []) -> [AllocationGroupRow] {
+        var holdings = viewModel.summary?.holdings ?? []
 
-    private func tokenScore(token: String, haystack: [String]) -> Int {
-        var best = 0
-        for value in haystack {
-            if value.hasPrefix(token) {
-                best = max(best, 3)
-            } else if value.contains(token) {
-                if value.hasSuffix(token) {
-                    best = max(best, 1)
-                } else {
-                    best = max(best, 2)
+        if !tokens.isEmpty {
+            let matched = holdings.filter { holding in
+                let haystack = holdingHaystack(for: holding)
+                return tokens.allSatisfy { token in
+                    haystack.contains { $0.contains(token) }
                 }
             }
+            if !matched.isEmpty {
+                holdings = matched
+            }
         }
-        return best
-    }
-    private func groupedAllocationRows() -> [AllocationGroupRow] {
-        let holdings = viewModel.summary?.holdings ?? []
+
         let netWorthDecimal = netWorthUSD()
         var groups: [String: AllocationGroupAccumulator] = [:]
 
@@ -282,6 +258,17 @@ struct DashboardView: View {
                 }
                 return lhs.asset < rhs.asset
             }
+    }
+
+    private func holdingHaystack(for holding: AllocationRow) -> [String] {
+        var values: [String] = [holding.asset.lowercased()]
+        if let name = holding.sourceName?.lowercased() {
+            values.append(name)
+        }
+        if let type = holding.assetType?.lowercased(), !type.isEmpty {
+            values.append(type)
+        }
+        return values
     }
 
     private func netWorthUSD() -> Decimal? {
@@ -337,8 +324,9 @@ private struct SourceIconItem: Identifiable {
 }
 
 private struct SourceAllocation: Identifiable {
-    var id: String { source }
+    var id: String { sourceName ?? source }
     let source: String
+    let sourceName: String?
     let amount: String?
     let usdValue: String?
 }
@@ -378,8 +366,8 @@ private struct AllocationGroupAccumulator {
             priceValue = price
         }
 
-        let sourceName = holding.sources.first ?? ""
-        sources.append(SourceAllocation(source: sourceName, amount: holding.amount, usdValue: holding.usdValue))
+        let sourceType = holding.sources.first ?? ""
+        sources.append(SourceAllocation(source: sourceType, sourceName: holding.sourceName, amount: holding.amount, usdValue: holding.usdValue))
     }
 
     func build(netWorth: Decimal?) -> AllocationGroupRow {

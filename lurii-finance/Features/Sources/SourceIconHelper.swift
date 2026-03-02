@@ -24,6 +24,10 @@ extension String {
             return "blend"
         case "revolut":
             return "revolut"
+        case "yo":
+            return "yo"
+        case "rabby":
+            return "rabby"
         default:
             return nil
         }
