@@ -207,11 +207,18 @@ struct EarnPosition: Codable, Identifiable {
 
 // MARK: - AI
 
+struct CommentarySection: Codable, Identifiable {
+    var id: String { title }
+    let title: String
+    let description: String
+}
+
 struct AICommentary: Codable {
     let date: String
     let text: String
     let model: String?
     let error: String?
+    let sections: [CommentarySection]?
 }
 
 struct ErrorMessageResponse: Codable {

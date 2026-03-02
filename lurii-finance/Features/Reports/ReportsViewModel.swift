@@ -5,6 +5,7 @@ import Combine
 final class ReportsViewModel: ObservableObject {
     @Published var commentary: AICommentary?
     @Published var isLoading = false
+    @Published var hasLoaded = false
     @Published var errorMessage: String?
     @Published var sendStatus: String?
 
@@ -20,6 +21,7 @@ final class ReportsViewModel: ObservableObject {
                 errorMessage = "Unable to fetch weekly report."
             }
             isLoading = false
+            hasLoaded = true
         }
     }
 
@@ -35,6 +37,15 @@ final class ReportsViewModel: ObservableObject {
                 errorMessage = "Failed to generate report."
             }
             isLoading = false
+        }
+    }
+
+    func silentRefresh() {
+        Task {
+            if let result = try? await APIClient.shared.getAICommentary() {
+                commentary = result
+            }
+            hasLoaded = true
         }
     }
 

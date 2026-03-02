@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct WeeklyReportView: View {
+    @EnvironmentObject private var appState: AppState
     @StateObject private var viewModel = ReportsViewModel()
 
     private var isPreview: Bool {
@@ -15,13 +16,22 @@ struct WeeklyReportView: View {
 
                 Spacer()
 
+                Button {
+                    viewModel.silentRefresh()
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .buttonStyle(.bordered)
+
                 Button("Generate") {
                     viewModel.generate()
                 }
                 .buttonStyle(.bordered)
             }
 
-            if viewModel.isLoading {
+            if !viewModel.hasLoaded {
+                Spacer()
+            } else if viewModel.isLoading {
                 ProgressView("Loading report...")
             } else if let errorMessage = viewModel.errorMessage {
                 EmptyStateView(title: "Report unavailable", message: errorMessage, actionTitle: "Retry") {
@@ -29,26 +39,38 @@ struct WeeklyReportView: View {
                 }
             } else if let commentary = viewModel.commentary,
                       !(commentary.text.isEmpty && (commentary.error ?? "").lowercased().contains("no ai commentary cached")) {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Date: \(commentary.date)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    if let model = commentary.model {
-                        Text("Model: \(model)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Text("Date: \(commentary.date)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            if let model = commentary.model {
+                                Text("Model: \(model)")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        if let error = commentary.error, !error.isEmpty {
+                            Text("AI Error: \(error)")
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                        }
+
+                        if let sections = commentary.sections, !sections.isEmpty {
+                            ForEach(sections) { section in
+                                SectionCard(section: section)
+                            }
+                        } else {
+                            Text(commentary.text)
+                                .font(DesignTokens.bodyFont)
+                                .padding(16)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(DesignTokens.cardBackground)
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                        }
                     }
-                    if let error = commentary.error, !error.isEmpty {
-                        Text("AI Error: \(error)")
-                            .font(.caption)
-                            .foregroundStyle(.orange)
-                    }
-                    Text(commentary.text)
-                        .font(DesignTokens.bodyFont)
                 }
-                .padding(16)
-                .background(DesignTokens.cardBackground)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
             } else {
                 EmptyStateView(title: "No report yet", message: "Generate a weekly commentary.")
             }
@@ -64,11 +86,43 @@ struct WeeklyReportView: View {
         .padding(24)
         .onAppear {
             guard !isPreview else { return }
-            viewModel.load()
+            viewModel.silentRefresh()
         }
+        .onChange(of: appState.selectedSection) { _, newSection in
+            if newSection == .reports {
+                viewModel.silentRefresh()
+            }
+        }
+    }
+}
+
+private struct SectionCard: View {
+    let section: CommentarySection
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(section.title)
+                .font(.headline)
+
+            if let attributed = try? AttributedString(
+                markdown: section.description,
+                options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+            ) {
+                Text(attributed)
+                    .font(DesignTokens.bodyFont)
+            } else {
+                Text(section.description)
+                    .font(DesignTokens.bodyFont)
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(DesignTokens.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 }
 
 #Preview {
     WeeklyReportView()
+        .environmentObject(AppState())
 }
