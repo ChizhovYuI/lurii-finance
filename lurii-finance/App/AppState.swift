@@ -85,12 +85,26 @@ final class AppState: ObservableObject {
                 self?.collecting = false
             }
         }
+        eventStreamClient.onReconnect = { [weak self] in
+            Task { @MainActor in
+                self?.syncCollectStatus()
+            }
+        }
         eventStreamClient.connect()
     }
 
     func stopEventStream() {
         eventStreamClient.disconnect()
         eventStreamConfigured = false
+    }
+
+    private func syncCollectStatus() {
+        Task {
+            let url = APIEndpoints.url(path: APIEndpoints.collectStatus)
+            guard let (data, _) = try? await URLSession.shared.data(from: url),
+                  let status = try? JSONDecoder().decode(CollectStatus.self, from: data) else { return }
+            collecting = status.collecting
+        }
     }
 
     func markDisconnected() {
