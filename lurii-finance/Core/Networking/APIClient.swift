@@ -100,8 +100,12 @@ struct APIClient {
         }
     }
 
-    func generateAICommentary() async throws -> AICommentary {
-        try await request(path: APIEndpoints.aiCommentary, method: "POST")
+    func generateAICommentary() async throws {
+        try await requestVoid(path: APIEndpoints.aiCommentary, method: "POST")
+    }
+
+    func getCommentaryStatus() async throws -> CommentaryStatus {
+        try await request(path: APIEndpoints.aiCommentaryStatus, method: "GET")
     }
 
     func getAIConfig() async throws -> AIConfig {
@@ -149,14 +153,15 @@ struct APIClient {
         _ = try await requestVoid(path: APIEndpoints.aiProvider(type), method: "DELETE")
     }
 
-    private func request<T: Decodable>(path: String, method: String, body: Encodable? = nil) async throws -> T {
+    private func request<T: Decodable>(path: String, method: String, body: Encodable? = nil, timeout: TimeInterval? = nil) async throws -> T {
         let url = APIEndpoints.url(path: path)
-        return try await request(url: url, method: method, body: body)
+        return try await request(url: url, method: method, body: body, timeout: timeout)
     }
 
-    private func request<T: Decodable>(url: URL, method: String, body: Encodable? = nil) async throws -> T {
+    private func request<T: Decodable>(url: URL, method: String, body: Encodable? = nil, timeout: TimeInterval? = nil) async throws -> T {
         var request = URLRequest(url: url)
         request.httpMethod = method
+        if let timeout { request.timeoutInterval = timeout }
         request.setValue("application/json", forHTTPHeaderField: "Accept")
 
         if let body {

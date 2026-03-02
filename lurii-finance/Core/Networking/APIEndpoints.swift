@@ -30,6 +30,7 @@ enum APIEndpoints {
     static let earnSummary = "/api/v1/earn/summary"
 
     static let aiCommentary = "/api/v1/ai/commentary"
+    static let aiCommentaryStatus = "/api/v1/ai/commentary/status"
     static let aiConfig = "/api/v1/ai/config"
     static let aiProviders = "/api/v1/ai/providers"
     static func aiProvider(_ type: String) -> String { "/api/v1/ai/providers/\(type)" }

@@ -9,6 +9,22 @@ final class ReportsViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var sendStatus: String?
 
+    weak var appState: AppState?
+    private var cancellable: AnyCancellable?
+
+    init() {
+        cancellable = NotificationCenter.default
+            .publisher(for: .commentaryCompleted)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] notification in
+                if let result = notification.object as? AICommentary {
+                    self?.commentary = result
+                } else {
+                    self?.silentRefresh()
+                }
+            }
+    }
+
     func load() {
         guard !isLoading else { return }
         isLoading = true
@@ -26,17 +42,20 @@ final class ReportsViewModel: ObservableObject {
     }
 
     func generate() {
-        guard !isLoading else { return }
-        isLoading = true
+        guard appState?.generatingCommentary != true else { return }
+        appState?.generatingCommentary = true
         errorMessage = nil
 
         Task {
             do {
-                commentary = try await APIClient.shared.generateAICommentary()
+                try await APIClient.shared.generateAICommentary()
+                // 202 accepted — WS events handle the rest
+            } catch APIError.httpStatus(409) {
+                // Already generating — WS event will clear it
             } catch {
-                errorMessage = "Failed to generate report."
+                errorMessage = "Failed to start report generation."
+                appState?.generatingCommentary = false
             }
-            isLoading = false
         }
     }
 
@@ -46,6 +65,14 @@ final class ReportsViewModel: ObservableObject {
                 commentary = result
             }
             hasLoaded = true
+        }
+    }
+
+    func checkGeneratingStatus() {
+        Task {
+            if let status = try? await APIClient.shared.getCommentaryStatus() {
+                appState?.generatingCommentary = status.generating
+            }
         }
     }
 

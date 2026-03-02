@@ -221,6 +221,10 @@ struct AICommentary: Codable {
     let sections: [CommentarySection]?
 }
 
+struct CommentaryStatus: Codable {
+    let generating: Bool
+}
+
 struct ErrorMessageResponse: Codable {
     let error: String
 }

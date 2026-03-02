@@ -27,6 +27,17 @@ struct WeeklyReportView: View {
                     viewModel.generate()
                 }
                 .buttonStyle(.bordered)
+                .disabled(appState.generatingCommentary)
+            }
+
+            if appState.generatingCommentary {
+                HStack(spacing: 8) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("Generating report…")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             if !viewModel.hasLoaded {
@@ -85,12 +96,15 @@ struct WeeklyReportView: View {
         }
         .padding(24)
         .onAppear {
+            viewModel.appState = appState
             guard !isPreview else { return }
             viewModel.silentRefresh()
+            viewModel.checkGeneratingStatus()
         }
         .onChange(of: appState.selectedSection) { _, newSection in
             if newSection == .reports {
                 viewModel.silentRefresh()
+                viewModel.checkGeneratingStatus()
             }
         }
     }

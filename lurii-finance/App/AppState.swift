@@ -53,6 +53,7 @@ final class AppState: ObservableObject {
     @Published var selectedSection: AppSection = .dashboard
     @Published var collecting: Bool = false
     @Published var collectionProgress: Double = 0
+    @Published var generatingCommentary: Bool = false
 
     private let eventStreamClient = EventStreamClient()
     private var eventStreamConfigured = false
@@ -141,6 +142,26 @@ final class AppState: ObservableObject {
             }
         case "snapshot_updated":
             NotificationCenter.default.post(name: .snapshotUpdated, object: nil)
+        case "commentary_started":
+            Task { @MainActor in
+                generatingCommentary = true
+            }
+        case "commentary_completed":
+            Task { @MainActor in
+                generatingCommentary = false
+            }
+            // Parse the commentary from the event payload if available
+            var commentary: AICommentary?
+            if let jsonData = try? JSONSerialization.data(withJSONObject: payload) {
+                let decoder = JSONDecoder()
+                decoder.keyDecodingStrategy = .convertFromSnakeCase
+                commentary = try? decoder.decode(AICommentary.self, from: jsonData)
+            }
+            NotificationCenter.default.post(name: .commentaryCompleted, object: commentary)
+        case "commentary_failed":
+            Task { @MainActor in
+                generatingCommentary = false
+            }
         default:
             if let collectingValue = payload["collecting"] as? Bool {
                 Task { @MainActor in
