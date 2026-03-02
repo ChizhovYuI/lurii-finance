@@ -21,7 +21,27 @@ enum DaemonLauncher {
     ]
 
     private static func findPfm() -> String? {
-        searchPaths.first { FileManager.default.isExecutableFile(atPath: $0) }
+        // Check well-known Homebrew paths first
+        if let known = searchPaths.first(where: { FileManager.default.isExecutableFile(atPath: $0) }) {
+            return known
+        }
+        // Fallback: resolve via shell (covers custom Homebrew prefixes)
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/zsh")
+        process.arguments = ["-lc", "which pfm"]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = FileHandle.nullDevice
+        do {
+            try process.run()
+            process.waitUntilExit()
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            let path = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if process.terminationStatus == 0, !path.isEmpty, FileManager.default.isExecutableFile(atPath: path) {
+                return path
+            }
+        } catch {}
+        return nil
     }
 
     static func ensureRunning() async throws {
