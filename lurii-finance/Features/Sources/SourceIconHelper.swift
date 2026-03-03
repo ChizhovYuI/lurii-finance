@@ -28,6 +28,10 @@ extension String {
             return "yo"
         case "rabby":
             return "rabby"
+        case "bitget_wallet":
+            return "bitget_wallet"
+        case "mexc":
+            return "mexc"
         default:
             return nil
         }
