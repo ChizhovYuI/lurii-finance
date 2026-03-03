@@ -32,6 +32,8 @@ extension String {
             return "bitget_wallet"
         case "mexc":
             return "mexc"
+        case "mexc_earn":
+            return "mexc_earn"
         default:
             return nil
         }
