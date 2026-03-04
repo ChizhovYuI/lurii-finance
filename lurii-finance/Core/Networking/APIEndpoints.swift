@@ -21,6 +21,8 @@ enum APIEndpoints {
     static let sourceTypes = "/api/v1/source-types"
     static let sources = "/api/v1/sources"
     static func sourceDetail(_ name: String) -> String { "/api/v1/sources/\(name)" }
+    static func sourceApyRules(_ name: String) -> String { "/api/v1/sources/\(name)/apy-rules" }
+    static func sourceApyRule(_ name: String, ruleId: String) -> String { "/api/v1/sources/\(name)/apy-rules/\(ruleId)" }
 
     static let portfolioSummary = "/api/v1/portfolio/summary"
     static let portfolioHoldings = "/api/v1/portfolio/holdings"

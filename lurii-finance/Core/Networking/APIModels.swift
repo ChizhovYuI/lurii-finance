@@ -19,6 +19,61 @@ struct SourceTypeField: Codable, Identifiable {
     let tip: String?
 }
 
+struct SupportedApyRule: Codable, Identifiable {
+    var id: String { protocolName }
+    let protocolName: String
+    let coins: [String]
+
+    enum CodingKeys: String, CodingKey {
+        case protocolName = "protocol"
+        case coins
+    }
+}
+
+struct SourceTypeInfo: Codable {
+    let fields: [SourceTypeField]
+    let supportedApyRules: [SupportedApyRule]?
+}
+
+// MARK: - APY Rules
+
+struct RuleLimitDTO: Codable, Identifiable {
+    var id: String { "\(fromAmount)-\(toAmount ?? "inf")" }
+    let fromAmount: String
+    let toAmount: String?
+    let apy: String
+}
+
+struct ApyRuleDTO: Codable, Identifiable {
+    let id: String
+    let protocolName: String
+    let coin: String
+    let type: String
+    let limits: [RuleLimitDTO]
+    let startedAt: String
+    let finishedAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case protocolName = "protocol"
+        case coin, type, limits, startedAt, finishedAt
+    }
+}
+
+struct ApyRuleCreateRequest: Codable {
+    let protocolName: String
+    let coin: String
+    let type: String
+    let limits: [RuleLimitDTO]
+    let startedAt: String
+    let finishedAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case protocolName = "protocol"
+        case coin, type, limits, startedAt, finishedAt
+    }
+}
+
 // MARK: - Sources
 
 struct SourceDTO: Codable, Identifiable {

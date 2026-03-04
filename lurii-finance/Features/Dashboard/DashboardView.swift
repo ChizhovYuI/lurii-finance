@@ -4,6 +4,7 @@ struct DashboardView: View {
     @EnvironmentObject private var appState: AppState
     @StateObject private var viewModel: DashboardViewModel
     @State private var allocationFilter = ""
+    @State private var hideLowValues = true
 
     @MainActor init(viewModel: DashboardViewModel = DashboardViewModel()) {
         _viewModel = StateObject(wrappedValue: viewModel)
@@ -125,6 +126,9 @@ struct DashboardView: View {
                 Text("Allocation")
                     .font(.headline)
                 Spacer()
+                Toggle("Hide < $1", isOn: $hideLowValues)
+                    .toggleStyle(.checkbox)
+                    .font(.caption)
                 TextField("Filter by asset, source, type", text: $allocationFilter)
                     .textFieldStyle(.roundedBorder)
                     .frame(maxWidth: 260)
@@ -220,11 +224,18 @@ struct DashboardView: View {
             .lowercased()
             .split(whereSeparator: { $0.isWhitespace })
             .map(String.init)
-        return groupedAllocationRows(filter: tokens)
+        return groupedAllocationRows(filter: tokens, hideLowValues: hideLowValues)
     }
 
-    private func groupedAllocationRows(filter tokens: [String] = []) -> [AllocationGroupRow] {
+    private func groupedAllocationRows(filter tokens: [String] = [], hideLowValues: Bool = false) -> [AllocationGroupRow] {
         var holdings = viewModel.summary?.holdings ?? []
+
+        if hideLowValues {
+            holdings = holdings.filter { holding in
+                guard let usd = holding.usdValue, let value = Decimal(string: usd) else { return true }
+                return value >= 1
+            }
+        }
 
         if !tokens.isEmpty {
             let matched = holdings.filter { holding in

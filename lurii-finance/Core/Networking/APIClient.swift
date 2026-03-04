@@ -25,7 +25,7 @@ struct APIClient {
         try await request(path: APIEndpoints.health, method: "GET")
     }
 
-    func getSourceTypes() async throws -> [String: [SourceTypeField]] {
+    func getSourceTypes() async throws -> [String: SourceTypeInfo] {
         try await request(path: APIEndpoints.sourceTypes, method: "GET")
     }
 
@@ -43,6 +43,24 @@ struct APIClient {
 
     func patchSource(name: String, body: SourcePatchRequest) async throws {
         _ = try await requestVoid(path: APIEndpoints.sourceDetail(name), method: "PATCH", body: body)
+    }
+
+    // MARK: - APY Rules
+
+    func getApyRules(sourceName: String) async throws -> [ApyRuleDTO] {
+        try await request(path: APIEndpoints.sourceApyRules(sourceName), method: "GET")
+    }
+
+    func createApyRule(sourceName: String, body: ApyRuleCreateRequest) async throws -> [ApyRuleDTO] {
+        try await request(path: APIEndpoints.sourceApyRules(sourceName), method: "POST", body: body)
+    }
+
+    func updateApyRule(sourceName: String, ruleId: String, body: ApyRuleCreateRequest) async throws -> [ApyRuleDTO] {
+        try await request(path: APIEndpoints.sourceApyRule(sourceName, ruleId: ruleId), method: "PUT", body: body)
+    }
+
+    func deleteApyRule(sourceName: String, ruleId: String) async throws {
+        _ = try await requestVoid(path: APIEndpoints.sourceApyRule(sourceName, ruleId: ruleId), method: "DELETE")
     }
 
     func getPortfolioSummary() async throws -> PortfolioSummary {

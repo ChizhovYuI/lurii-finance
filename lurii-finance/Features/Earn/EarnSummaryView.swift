@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct EarnSummaryView: View {
+    @EnvironmentObject private var appState: AppState
     @StateObject private var viewModel = EarnSummaryViewModel()
 
     private var isPreview: Bool {
@@ -33,6 +34,11 @@ struct EarnSummaryView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .snapshotUpdated)) { _ in
             viewModel.load()
+        }
+        .onChange(of: appState.selectedSection) { _, newValue in
+            if newValue == .earn {
+                viewModel.load()
+            }
         }
     }
 
@@ -71,7 +77,11 @@ struct EarnSummaryView: View {
                 Text("No yield-bearing positions")
                     .foregroundStyle(.secondary)
             } else {
-                ForEach(summary.positions) { position in
+                ForEach(summary.positions.sorted { lhs, rhs in
+                    let l = Decimal(string: lhs.apy ?? "0") ?? 0
+                    let r = Decimal(string: rhs.apy ?? "0") ?? 0
+                    return l > r
+                }) { position in
                     positionRow(position)
                 }
             }

@@ -80,7 +80,12 @@ struct SourcesListView: View {
             AddSourceSheet(viewModel: viewModel)
         }
         .sheet(item: $selectedSource) { source in
-            SourceDetailSheet(source: source)
+            SourceDetailSheet(
+                source: source,
+                fields: viewModel.sourceTypes[source.type]?.fields ?? [],
+                supportedApyRules: viewModel.sourceTypes[source.type]?.supportedApyRules ?? [],
+                onSaved: { Task { await viewModel.reload() } }
+            )
         }
     }
 }

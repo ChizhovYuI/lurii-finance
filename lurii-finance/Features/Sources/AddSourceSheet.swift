@@ -55,7 +55,7 @@ struct AddSourceSheet: View {
     private var fieldsView: some View {
         VStack(alignment: .leading, spacing: 12) {
             // Show tip from first field if available
-            if let firstField = viewModel.sourceTypes[selectedType]?.first,
+            if let firstField = viewModel.sourceTypes[selectedType]?.fields.first,
                let tip = firstField.tip,
                !tip.isEmpty {
                 HStack(alignment: .top, spacing: 8) {
@@ -77,7 +77,7 @@ struct AddSourceSheet: View {
             }
             
             // Credential fields
-            ForEach(viewModel.sourceTypes[selectedType] ?? []) { field in
+            ForEach(viewModel.sourceTypes[selectedType]?.fields ?? []) { field in
                 VStack(alignment: .leading, spacing: 6) {
                     Text(field.prompt)
                         .font(.caption)

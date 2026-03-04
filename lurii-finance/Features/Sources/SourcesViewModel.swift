@@ -4,7 +4,7 @@ import Combine
 @MainActor
 final class SourcesViewModel: ObservableObject {
     @Published var sources: [SourceDTO] = []
-    @Published var sourceTypes: [String: [SourceTypeField]] = [:]
+    @Published var sourceTypes: [String: SourceTypeInfo] = [:]
     @Published var isLoading = false
     @Published var errorMessage: String?
 
