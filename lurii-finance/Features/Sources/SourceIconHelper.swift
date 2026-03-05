@@ -34,6 +34,8 @@ extension String {
             return "mexc"
         case "mexc_earn":
             return "mexc_earn"
+        case "emcd":
+            return "emcd"
         default:
             return nil
         }
