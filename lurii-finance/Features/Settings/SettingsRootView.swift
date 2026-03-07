@@ -53,7 +53,7 @@ private struct AboutView: View {
     private var updates: UpdatesResponse? { appState.updates }
 
     private var appVersion: String? {
-        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
+        appState.runningAppVersion
     }
 
     private var appUpdateAvailable: Bool {
@@ -66,7 +66,29 @@ private struct AboutView: View {
     }
 
     private var restartPending: Bool {
-        updates?.restartPending == true
+        appState.restartNeeded
+    }
+
+    private var backendDisplayVersion: String? {
+        guard let updates else { return nil }
+        if let installed = updates.pfm.installed, installed != updates.pfm.current {
+            return installed
+        }
+        if updates.pfm.updateAvailable {
+            return updates.pfm.latest
+        }
+        return nil
+    }
+
+    private var appDisplayVersion: String? {
+        guard let updates else { return nil }
+        if let current = appVersion, let installed = updates.app.installed, installed != current {
+            return installed
+        }
+        if let current = appVersion, let latest = updates.app.latest, latest != current {
+            return latest
+        }
+        return nil
     }
 
     private var shouldShowUpdateMessage: Bool {
@@ -105,26 +127,26 @@ private struct AboutView: View {
                             .foregroundStyle(.secondary)
                         Spacer()
                         Text(updates.pfm.current)
-                        if updates.pfm.updateAvailable, let latest = updates.pfm.latest {
+                        if let displayVersion = backendDisplayVersion {
                             Image(systemName: "arrow.right")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
-                            Text(latest)
+                            Text(displayVersion)
                                 .foregroundStyle(.green)
                         }
                     }
 
-                    if let latestApp = updates.app.latest {
+                    if updates.app.latest != nil || updates.app.installed != nil {
                         HStack {
                             Text("App")
                                 .foregroundStyle(.secondary)
                             Spacer()
                             Text(appVersion ?? "?")
-                            if appUpdateAvailable {
+                            if let displayVersion = appDisplayVersion {
                                 Image(systemName: "arrow.right")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
-                                Text(latestApp)
+                                Text(displayVersion)
                                     .foregroundStyle(.green)
                             }
                         }
@@ -212,10 +234,7 @@ private struct AboutView: View {
             defer { isCheckingUpdates = false }
             do {
                 let response = try await APIClient.shared.forceCheckUpdates()
-                appState.updates = response
-                let appCurrent = appVersion
-                let appNeedsUpdate = if let appCurrent, let latest = response.app.latest { latest != appCurrent } else { false }
-                appState.updateAvailable = response.pfm.updateAvailable || appNeedsUpdate || (response.restartPending == true)
+                appState.applyUpdatesResponse(response)
             } catch {
                 // Fall back to regular check
                 await appState.checkForUpdates()

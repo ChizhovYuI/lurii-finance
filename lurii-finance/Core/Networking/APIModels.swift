@@ -397,11 +397,13 @@ struct UpdatesResponse: Codable {
 struct PfmVersionInfo: Codable {
     let current: String
     let latest: String?
+    let installed: String?
     let updateAvailable: Bool
 }
 
 struct AppVersionInfo: Codable {
     let latest: String?
+    let installed: String?
 }
 
 struct InstallUpdateRequest: Codable {

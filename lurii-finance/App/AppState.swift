@@ -75,6 +75,14 @@ final class AppState: ObservableObject {
         return false
     }
 
+    var runningAppVersion: String? {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
+    }
+
+    var restartNeeded: Bool {
+        restartNeeded(for: updates) || updateStatus == "installed"
+    }
+
     func updateFromHealth(_ health: HealthResponse) {
         daemonStatus = .connected(version: health.version)
         collecting = health.collecting
@@ -310,11 +318,14 @@ final class AppState: ObservableObject {
         return min(max(normalized, 0), 1)
     }
 
-    private func applyUpdatesResponse(_ response: UpdatesResponse) {
+    func applyUpdatesResponse(_ response: UpdatesResponse) {
         updates = response
-        let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
-        let appNeedsUpdate = if let appVersion, let latest = response.app.latest { latest != appVersion } else { false }
-        updateAvailable = response.pfm.updateAvailable || appNeedsUpdate || (response.restartPending == true)
+        let appNeedsUpdate = if let appVersion = runningAppVersion, let latest = response.app.latest {
+            latest != appVersion
+        } else {
+            false
+        }
+        updateAvailable = response.pfm.updateAvailable || appNeedsUpdate || restartNeeded(for: response)
     }
 
     private func applyUpdateStatus(_ status: UpdateStatusResponse) {
@@ -341,5 +352,22 @@ final class AppState: ObservableObject {
             updateInstalling = false
             updateMessage = status.message
         }
+    }
+
+    private func restartNeeded(for response: UpdatesResponse?) -> Bool {
+        guard let response else { return false }
+        return response.restartPending == true || hasPfmInstalledMismatch(response) || hasAppInstalledMismatch(response)
+    }
+
+    private func hasPfmInstalledMismatch(_ response: UpdatesResponse) -> Bool {
+        guard let installed = response.pfm.installed, !installed.isEmpty else { return false }
+        return installed != response.pfm.current
+    }
+
+    private func hasAppInstalledMismatch(_ response: UpdatesResponse) -> Bool {
+        guard let installed = response.app.installed, !installed.isEmpty, let current = runningAppVersion else {
+            return false
+        }
+        return installed != current
     }
 }
