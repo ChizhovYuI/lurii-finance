@@ -287,6 +287,11 @@ struct APIClient {
         }
 
         guard (200...299).contains(httpResponse.statusCode) else {
+            if httpResponse.statusCode == 404 || httpResponse.statusCode == 405 {
+                throw ValidationRequestError.message(
+                    "Connection checks require a newer lurii-pfm backend. Update the local service and retry."
+                )
+            }
             if let error = try? decoder.decode(ErrorMessageResponse.self, from: data) {
                 throw ValidationRequestError.message(error.error)
             }

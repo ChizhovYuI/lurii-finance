@@ -20,7 +20,7 @@ enum APIEndpoints {
     static let health = "/api/v1/health"
     static let sourceTypes = "/api/v1/source-types"
     static let sources = "/api/v1/sources"
-    static let sourceValidate = "/api/v1/sources/validate"
+    static let sourceValidate = "/api/v1/source-connections/validate"
     static func sourceDetail(_ name: String) -> String { "/api/v1/sources/\(name)" }
     static func sourceApyRules(_ name: String) -> String { "/api/v1/sources/\(name)/apy-rules" }
     static func sourceApyRule(_ name: String, ruleId: String) -> String { "/api/v1/sources/\(name)/apy-rules/\(ruleId)" }

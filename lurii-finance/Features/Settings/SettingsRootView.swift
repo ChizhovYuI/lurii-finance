@@ -69,6 +69,10 @@ private struct AboutView: View {
         updates?.restartPending == true
     }
 
+    private var shouldShowUpdateMessage: Bool {
+        !appState.updateMessage.isEmpty && (appState.updateInstalling || appState.updateStatus == "installed" || appState.updateStatus == "error")
+    }
+
     var body: some View {
         VStack(spacing: 20) {
             Image("app-logo")
@@ -133,9 +137,6 @@ private struct AboutView: View {
                     VStack(spacing: 6) {
                         ProgressView(value: appState.updateProgress)
                             .frame(maxWidth: 260)
-                        Text(appState.updateMessage)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
                     }
                 } else if restartPending {
                     Button {
@@ -169,6 +170,14 @@ private struct AboutView: View {
                     }
                     .disabled(isCheckingUpdates)
                 }
+
+                if shouldShowUpdateMessage {
+                    Text(appState.updateMessage)
+                        .font(.caption)
+                        .foregroundStyle(appState.updateStatus == "error" ? .red : .secondary)
+                        .frame(maxWidth: 260)
+                        .multilineTextAlignment(.center)
+                }
             }
 
             Toggle("Open at Login", isOn: $openAtLogin)
@@ -191,9 +200,9 @@ private struct AboutView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(48)
-        .task { await appState.checkForUpdates() }
+        .task { await appState.syncUpdateStatus() }
         .onReceive(NotificationCenter.default.publisher(for: .updateCompleted)) { _ in
-            Task { await appState.checkForUpdates() }
+            Task { await appState.syncUpdateStatus() }
         }
     }
 

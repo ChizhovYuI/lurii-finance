@@ -412,6 +412,9 @@ struct UpdateStatusResponse: Codable {
     let status: String
     let progress: Double
     let message: String
+    let target: String?
+    let installedVersions: [String: String]?
+    let updatedAt: String?
 }
 
 // MARK: - Report

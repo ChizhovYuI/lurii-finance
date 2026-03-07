@@ -55,6 +55,7 @@ final class AppState: ObservableObject {
     @Published var collectionProgress: Double = 0
     @Published var collectionMessage: String = ""
     @Published var generatingCommentary: Bool = false
+    @Published var updateStatus: String = "idle"
     @Published var updateInstalling: Bool = false
     @Published var updateProgress: Double = 0
     @Published var updateMessage: String = ""
@@ -93,11 +94,15 @@ final class AppState: ObservableObject {
         eventStreamClient.onDisconnect = { [weak self] in
             Task { @MainActor in
                 self?.collecting = false
+                if self?.updateInstalling == true {
+                    self?.updateMessage = "Reconnecting to update service..."
+                }
             }
         }
         eventStreamClient.onReconnect = { [weak self] in
             Task { @MainActor in
-                self?.syncCollectStatus()
+                await self?.syncCollectStatus()
+                await self?.syncUpdateStatus()
             }
         }
         eventStreamClient.connect()
@@ -110,22 +115,36 @@ final class AppState: ObservableObject {
         updateCheckTask = nil
     }
 
-    private func syncCollectStatus() {
-        Task {
-            let url = APIEndpoints.url(path: APIEndpoints.collectStatus)
-            guard let (data, _) = try? await URLSession.shared.data(from: url),
-                  let status = try? JSONDecoder().decode(CollectStatus.self, from: data) else { return }
-            collecting = status.collecting
-        }
+    private func syncCollectStatus() async {
+        let url = APIEndpoints.url(path: APIEndpoints.collectStatus)
+        guard let (data, _) = try? await URLSession.shared.data(from: url),
+              let status = try? JSONDecoder().decode(CollectStatus.self, from: data) else { return }
+        collecting = status.collecting
     }
 
     func checkForUpdates() async {
         do {
             let response = try await APIClient.shared.getUpdates()
-            updates = response
-            let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
-            let appNeedsUpdate = if let appVersion, let latest = response.app.latest { latest != appVersion } else { false }
-            updateAvailable = response.pfm.updateAvailable || appNeedsUpdate || (response.restartPending == true)
+            applyUpdatesResponse(response)
+        } catch {
+            // Non-critical — silently ignore
+        }
+    }
+
+    func syncUpdateStatus() async {
+        do {
+            let status = try await APIClient.shared.getUpdateStatus()
+            applyUpdateStatus(status)
+        } catch {
+            if updateInstalling {
+                updateMessage = "Reconnecting to update service..."
+            }
+            return
+        }
+
+        do {
+            let response = try await APIClient.shared.getUpdates()
+            applyUpdatesResponse(response)
         } catch {
             // Non-critical — silently ignore
         }
@@ -134,11 +153,11 @@ final class AppState: ObservableObject {
     private func startUpdateCheckLoop() {
         guard updateCheckTask == nil else { return }
         updateCheckTask = Task {
-            await checkForUpdates()
+            await syncUpdateStatus()
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(Self.updateCheckInterval))
                 guard !Task.isCancelled else { break }
-                await checkForUpdates()
+                await syncUpdateStatus()
             }
         }
     }
@@ -148,7 +167,9 @@ final class AppState: ObservableObject {
         collecting = false
         collectionProgress = 0
         collectionMessage = ""
-        updateInstalling = false
+        if updateInstalling {
+            updateMessage = "Reconnecting to update service..."
+        }
     }
 
     private func handleEventMessage(_ message: String) {
@@ -227,6 +248,7 @@ final class AppState: ObservableObject {
             }
         case "update_started":
             Task { @MainActor in
+                updateStatus = "installing"
                 updateInstalling = true
                 updateProgress = 0
                 updateMessage = "Starting update..."
@@ -235,12 +257,14 @@ final class AppState: ObservableObject {
             let progress = payload["progress"] as? Double ?? 0
             let message = payload["message"] as? String ?? ""
             Task { @MainActor in
+                updateStatus = "installing"
                 updateInstalling = true
                 updateProgress = progress
                 updateMessage = message
             }
         case "update_completed":
             Task { @MainActor in
+                updateStatus = "installed"
                 updateInstalling = false
                 updateProgress = 1
                 updateMessage = "Updates installed"
@@ -249,6 +273,7 @@ final class AppState: ObservableObject {
         case "update_failed":
             let error = payload["error"] as? String ?? "Update failed"
             Task { @MainActor in
+                updateStatus = "error"
                 updateInstalling = false
                 updateProgress = 0
                 updateMessage = error
@@ -283,5 +308,38 @@ final class AppState: ObservableObject {
     private func clampProgress(_ rawValue: Double) -> Double {
         let normalized = rawValue > 1 ? rawValue / 100.0 : rawValue
         return min(max(normalized, 0), 1)
+    }
+
+    private func applyUpdatesResponse(_ response: UpdatesResponse) {
+        updates = response
+        let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
+        let appNeedsUpdate = if let appVersion, let latest = response.app.latest { latest != appVersion } else { false }
+        updateAvailable = response.pfm.updateAvailable || appNeedsUpdate || (response.restartPending == true)
+    }
+
+    private func applyUpdateStatus(_ status: UpdateStatusResponse) {
+        updateStatus = status.status
+        updateProgress = clampProgress(status.progress)
+
+        switch status.status {
+        case "installing":
+            updateInstalling = true
+            updateMessage = status.message.isEmpty ? "Installing updates..." : status.message
+        case "installed":
+            updateInstalling = false
+            updateProgress = 1
+            updateMessage = status.message.isEmpty ? "Updates installed" : status.message
+            updateAvailable = true
+            if let currentUpdates = updates {
+                updates = UpdatesResponse(pfm: currentUpdates.pfm, app: currentUpdates.app, restartPending: true)
+            }
+        case "error":
+            updateInstalling = false
+            updateProgress = 0
+            updateMessage = status.message.isEmpty ? "Update failed" : status.message
+        default:
+            updateInstalling = false
+            updateMessage = status.message
+        }
     }
 }
