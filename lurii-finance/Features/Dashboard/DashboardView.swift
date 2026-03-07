@@ -18,7 +18,7 @@ struct DashboardView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 header
-                CollectionProgressBar(isCollecting: appState.collecting, progress: appState.collectionProgress)
+                CollectionProgressBar(isCollecting: appState.collecting, progress: appState.collectionProgress, message: appState.collectionMessage)
                     .frame(maxWidth: .infinity)
 
                 if viewModel.isLoading {

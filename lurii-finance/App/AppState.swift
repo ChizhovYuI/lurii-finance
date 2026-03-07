@@ -53,6 +53,7 @@ final class AppState: ObservableObject {
     @Published var selectedSection: AppSection = .dashboard
     @Published var collecting: Bool = false
     @Published var collectionProgress: Double = 0
+    @Published var collectionMessage: String = ""
     @Published var generatingCommentary: Bool = false
 
     private let eventStreamClient = EventStreamClient()
@@ -111,6 +112,7 @@ final class AppState: ObservableObject {
         daemonStatus = .disconnected
         collecting = false
         collectionProgress = 0
+        collectionMessage = ""
     }
 
     private func handleEventMessage(_ message: String) {
@@ -133,26 +135,37 @@ final class AppState: ObservableObject {
             Task { @MainActor in
                 collecting = true
                 collectionProgress = 0
+                collectionMessage = "Starting..."
             }
         case "collection_progress":
-            let current = payload["current"] as? Int ?? 0
-            let total = payload["total"] as? Int ?? 0
+            let current = (payload["current"] as? Double) ?? Double(payload["current"] as? Int ?? 0)
+            let total = (payload["total"] as? Double) ?? Double(payload["total"] as? Int ?? 1)
+            let message = payload["message"] as? String
             Task { @MainActor in
                 collecting = true
                 if total > 0 {
-                    collectionProgress = clampProgress(Double(current) / Double(total))
+                    collectionProgress = clampProgress(current / total)
+                }
+                if let message {
+                    collectionMessage = message
                 }
             }
         case "collection_completed":
+            let message = payload["message"] as? String
             Task { @MainActor in
                 collecting = false
                 collectionProgress = 1
+                if let message {
+                    collectionMessage = message
+                }
             }
             NotificationCenter.default.post(name: .collectionCompleted, object: nil)
         case "collection_failed":
+            let error = payload["error"] as? String
             Task { @MainActor in
                 collecting = false
                 collectionProgress = 0
+                collectionMessage = error ?? "Collection failed"
             }
         case "snapshot_updated":
             NotificationCenter.default.post(name: .snapshotUpdated, object: nil)
