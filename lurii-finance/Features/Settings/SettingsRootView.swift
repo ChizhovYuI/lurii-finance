@@ -47,10 +47,25 @@ struct SettingsRootView: View {
 
 private struct AboutView: View {
     @State private var openAtLogin = SMAppService.mainApp.status == .enabled
+    @State private var updates: UpdatesResponse?
+    @State private var isChecking = false
+    @State private var isInstalling = false
+
+    private var appVersion: String? {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
+    }
+
+    private var appUpdateAvailable: Bool {
+        guard let current = appVersion, let latest = updates?.app.latest else { return false }
+        return latest != current
+    }
+
+    private var anyUpdateAvailable: Bool {
+        (updates?.pfm.updateAvailable ?? false) || appUpdateAvailable
+    }
 
     var body: some View {
         VStack(spacing: 20) {
-            // Note: Add an image set named "app-logo" to Assets.xcassets
             Image("app-logo")
                 .resizable()
                 .frame(width: 128, height: 128)
@@ -61,7 +76,7 @@ private struct AboutView: View {
                 .font(.title)
                 .fontWeight(.semibold)
 
-            if let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String,
+            if let version = appVersion,
                let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String {
                 Text("Version \(version) (\(build))")
                     .font(.subheadline)
@@ -72,6 +87,64 @@ private struct AboutView: View {
                 .font(.body)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
+
+            // Version info & update section
+            if let updates {
+                VStack(spacing: 8) {
+                    HStack {
+                        Text("Backend")
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text(updates.pfm.current)
+                        if updates.pfm.updateAvailable, let latest = updates.pfm.latest {
+                            Image(systemName: "arrow.right")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text(latest)
+                                .foregroundStyle(.green)
+                        }
+                    }
+
+                    if let latestApp = updates.app.latest {
+                        HStack {
+                            Text("App")
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Text(appVersion ?? "?")
+                            if appUpdateAvailable {
+                                Image(systemName: "arrow.right")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                Text(latestApp)
+                                    .foregroundStyle(.green)
+                            }
+                        }
+                    }
+                }
+                .font(.callout.monospacedDigit())
+                .frame(maxWidth: 260)
+
+                if anyUpdateAvailable {
+                    Button {
+                        installUpdates()
+                    } label: {
+                        if isInstalling {
+                            ProgressView()
+                                .controlSize(.small)
+                                .padding(.trailing, 4)
+                            Text("Installing...")
+                        } else {
+                            Image(systemName: "arrow.down.circle")
+                            Text("Install Updates")
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(isInstalling)
+                }
+            } else if isChecking {
+                ProgressView()
+                    .controlSize(.small)
+            }
 
             Toggle("Open at Login", isOn: $openAtLogin)
                 .toggleStyle(.switch)
@@ -93,6 +166,29 @@ private struct AboutView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(48)
+        .task { await checkForUpdates() }
+    }
+
+    private func checkForUpdates() async {
+        isChecking = true
+        defer { isChecking = false }
+        do {
+            updates = try await APIClient.shared.getUpdates()
+        } catch {
+            // Silently ignore — version info is non-critical
+        }
+    }
+
+    private func installUpdates() {
+        isInstalling = true
+        Task {
+            defer { isInstalling = false }
+            do {
+                try await APIClient.shared.installUpdate(target: "all")
+            } catch {
+                // Silently ignore — upgrade runs in background on the server
+            }
+        }
     }
 }
 

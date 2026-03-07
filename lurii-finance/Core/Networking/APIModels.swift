@@ -375,6 +375,27 @@ struct CollectionProgressEvent: Codable {
     let error: String?
 }
 
+// MARK: - Updates
+
+struct UpdatesResponse: Codable {
+    let pfm: PfmVersionInfo
+    let app: AppVersionInfo
+}
+
+struct PfmVersionInfo: Codable {
+    let current: String
+    let latest: String?
+    let updateAvailable: Bool
+}
+
+struct AppVersionInfo: Codable {
+    let latest: String?
+}
+
+struct InstallUpdateRequest: Codable {
+    let target: String
+}
+
 // MARK: - Report
 
 struct NotifyResponse: Codable {

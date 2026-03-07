@@ -147,6 +147,17 @@ struct APIClient {
         try await request(path: APIEndpoints.reportNotify, method: "POST")
     }
 
+    // MARK: - Updates
+
+    func getUpdates() async throws -> UpdatesResponse {
+        try await request(path: APIEndpoints.updates, method: "GET")
+    }
+
+    func installUpdate(target: String) async throws {
+        let body = InstallUpdateRequest(target: target)
+        _ = try await requestVoid(path: APIEndpoints.updatesInstall, method: "POST", body: body)
+    }
+
     func getSettings() async throws -> SettingsResponse {
         try await request(path: APIEndpoints.settings, method: "GET")
     }
