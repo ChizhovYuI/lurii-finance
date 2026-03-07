@@ -1,43 +1,9 @@
-import Foundation
+import AppKit
 
 extension String {
-    /// Returns the asset name for a source icon, or nil if no icon exists
+    /// Returns the asset name for a source icon, or nil if no icon exists in the asset catalog
     func sourceIconName() -> String? {
-        switch self.lowercased() {
-        case "okx":
-            return "okx"
-        case "binance":
-            return "binance"
-        case "binance_th":
-            return "binance_th"
-        case "bybit":
-            return "bybit"
-        case "lobstr":
-            return "lobstr"
-        case "wise":
-            return "wise"
-        case "kbank":
-            return "kbank"
-        case "ibkr":
-            return "ibkr"
-        case "blend":
-            return "blend"
-        case "revolut":
-            return "revolut"
-        case "yo":
-            return "yo"
-        case "rabby":
-            return "rabby"
-        case "bitget_wallet":
-            return "bitget_wallet"
-        case "mexc":
-            return "mexc"
-        case "mexc_earn":
-            return "mexc_earn"
-        case "emcd":
-            return "emcd"
-        default:
-            return nil
-        }
+        let key = self.lowercased()
+        return NSImage(named: key) != nil ? key : nil
     }
 }
