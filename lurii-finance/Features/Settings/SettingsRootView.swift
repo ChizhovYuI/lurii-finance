@@ -254,6 +254,7 @@ private struct AboutView: View {
 
     private func restartAfterUpdate() {
         Task {
+            AppRelauncher.scheduleRelaunch()
             do {
                 try await APIClient.shared.restartServices()
             } catch {
