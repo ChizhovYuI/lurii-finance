@@ -62,6 +62,14 @@ struct DashboardView: View {
             Spacer()
 
             Button {
+                appState.hideBalance.toggle()
+            } label: {
+                Image(systemName: appState.hideBalance ? "eye.slash" : "eye")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+
+            Button {
                 viewModel.load()
             } label: {
                 Image(systemName: "arrow.clockwise")
@@ -166,16 +174,17 @@ struct DashboardView: View {
     }
 
     private func allocationRow(_ row: AllocationGroupRow) -> some View {
-        HStack(spacing: 12) {
+        let hidden = appState.hideBalance
+        return HStack(spacing: 12) {
             rowCell(row.asset)
             sourceCell(sources: row.sources, asset: row.asset)
-            let amountText = ValueFormatters.number(from: row.amount) ?? row.amount ?? "—"
+            let amountText = hidden ? "••••" : (ValueFormatters.number(from: row.amount) ?? row.amount ?? "—")
             rowCell(amountText, alignment: .trailing)
             let priceText = ValueFormatters.currency(from: row.price, code: "usd") ?? row.price ?? "—"
             rowCell(priceText, alignment: .trailing)
-            let valueText = ValueFormatters.currency(from: row.usdValue, code: "usd") ?? row.usdValue ?? "—"
+            let valueText = hidden ? "••••" : (ValueFormatters.currency(from: row.usdValue, code: "usd") ?? row.usdValue ?? "—")
             rowCell(valueText, alignment: .trailing)
-            let percentText = ValueFormatters.percentFromPercentValue(row.percentage) ?? row.percentage ?? "—"
+            let percentText = hidden ? "••••" : (ValueFormatters.percentFromPercentValue(row.percentage) ?? row.percentage ?? "—")
             rowCell(percentText, alignment: .trailing)
             if let type = row.assetType {
                 rowCell(type.uppercased(), alignment: .trailing)

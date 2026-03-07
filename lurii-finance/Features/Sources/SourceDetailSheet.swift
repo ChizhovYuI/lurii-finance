@@ -6,21 +6,32 @@ struct SourceDetailSheet: View {
     let fields: [SourceTypeField]
     let supportedApyRules: [SupportedApyRule]
     var onSaved: (() -> Void)?
+    @ObservedObject var viewModel: SourcesViewModel
 
     @State private var enabled: Bool
     @State private var credentials: [String: String] = [:]
     @State private var isSaving = false
+    @State private var isCheckingConnection = false
     @State private var errorMessage: String?
+    @State private var validationMessage: String?
+    @State private var validationSucceeded: Bool?
 
     @State private var apyRules: [ApyRuleDTO] = []
     @State private var isLoadingRules = false
     @State private var ruleEditorItem: RuleEditorItem?
 
-    init(source: SourceDTO, fields: [SourceTypeField], supportedApyRules: [SupportedApyRule] = [], onSaved: (() -> Void)? = nil) {
+    init(
+        source: SourceDTO,
+        fields: [SourceTypeField],
+        supportedApyRules: [SupportedApyRule] = [],
+        onSaved: (() -> Void)? = nil,
+        viewModel: SourcesViewModel
+    ) {
         self.source = source
         self.fields = fields
         self.supportedApyRules = supportedApyRules
         self.onSaved = onSaved
+        self.viewModel = viewModel
         _enabled = State(initialValue: source.enabled)
     }
 
@@ -43,15 +54,9 @@ struct SourceDetailSheet: View {
                             Text(field.prompt)
                                 .font(.caption)
                             if field.secret {
-                                SecureField(field.name, text: Binding(
-                                    get: { credentials[field.name, default: ""] },
-                                    set: { credentials[field.name] = $0 }
-                                ))
+                                SecureField(field.name, text: binding(for: field.name))
                             } else {
-                                TextField(field.name, text: Binding(
-                                    get: { credentials[field.name, default: ""] },
-                                    set: { credentials[field.name] = $0 }
-                                ))
+                                TextField(field.name, text: binding(for: field.name))
                             }
                         }
                     }
@@ -63,6 +68,11 @@ struct SourceDetailSheet: View {
                 apyRulesSection
             }
 
+            if let validationMessage {
+                Text(validationMessage)
+                    .foregroundStyle(validationSucceeded == true ? .green : .red)
+            }
+
             if let errorMessage {
                 Text(errorMessage)
                     .foregroundStyle(.red)
@@ -70,12 +80,17 @@ struct SourceDetailSheet: View {
 
             HStack {
                 Spacer()
+                Button(isCheckingConnection ? "Checking..." : "Check Connection") {
+                    validateConnection()
+                }
+                .buttonStyle(.bordered)
+                .disabled(isSaving || isCheckingConnection)
                 Button("Cancel") { dismiss() }
                 Button(isSaving ? "Saving..." : "Save") {
                     save()
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(isSaving)
+                .disabled(isSaving || isCheckingConnection)
             }
         }
         .padding(24)
@@ -158,16 +173,12 @@ struct SourceDetailSheet: View {
         isSaving = true
         errorMessage = nil
 
-        let changed = credentials.filter { key, value in
-            source.credentials[key] != value && !value.isEmpty
-        }
-
         Task {
             do {
                 try await APIClient.shared.patchSource(
                     name: source.name,
                     body: SourcePatchRequest(
-                        credentials: changed.isEmpty ? nil : changed,
+                        credentials: changedCredentials.isEmpty ? nil : changedCredentials,
                         enabled: enabled
                     )
                 )
@@ -178,6 +189,47 @@ struct SourceDetailSheet: View {
             }
             isSaving = false
         }
+    }
+
+    private var changedCredentials: [String: String] {
+        credentials.filter { key, value in
+            source.credentials[key] != value && !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+    }
+
+    private func validateConnection() {
+        guard !isCheckingConnection else { return }
+        isCheckingConnection = true
+        errorMessage = nil
+        validationMessage = nil
+
+        Task {
+            let result = await viewModel.validateSource(name: source.name, credentials: changedCredentials)
+            switch result {
+            case let .success(message):
+                validationSucceeded = true
+                validationMessage = message
+            case let .failure(error):
+                validationSucceeded = false
+                validationMessage = error.errorDescription ?? "Connection check failed."
+            }
+            isCheckingConnection = false
+        }
+    }
+
+    private func binding(for fieldName: String) -> Binding<String> {
+        Binding(
+            get: { credentials[fieldName, default: ""] },
+            set: {
+                credentials[fieldName] = $0
+                clearValidationState()
+            }
+        )
+    }
+
+    private func clearValidationState() {
+        validationMessage = nil
+        validationSucceeded = nil
     }
 }
 
@@ -220,6 +272,7 @@ private struct RuleEditorItem: Identifiable {
 #Preview {
     SourceDetailSheet(
         source: SourceDTO(name: "Coinbase", type: "exchange", credentials: ["apiKey": "••••"], enabled: true),
-        fields: [SourceTypeField(name: "apiKey", prompt: "API Key", required: true, secret: true, tip: nil)]
+        fields: [SourceTypeField(name: "apiKey", prompt: "API Key", required: true, secret: true, tip: nil)],
+        viewModel: SourcesViewModel()
     )
 }

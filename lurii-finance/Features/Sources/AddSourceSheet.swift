@@ -6,7 +6,10 @@ struct AddSourceSheet: View {
     @State private var selectedType: String = ""
     @State private var credentials: [String: String] = [:]
     @State private var isSubmitting = false
+    @State private var isCheckingConnection = false
     @State private var errorMessage: String?
+    @State private var validationMessage: String?
+    @State private var validationSucceeded: Bool?
 
     @ObservedObject var viewModel: SourcesViewModel
 
@@ -24,9 +27,15 @@ struct AddSourceSheet: View {
             }
             .onChange(of: selectedType) { _, _ in
                 credentials = [:]
+                clearValidationState()
             }
 
             fieldsView
+
+            if let validationMessage {
+                Text(validationMessage)
+                    .foregroundStyle(validationSucceeded == true ? .green : .red)
+            }
 
             if let errorMessage {
                 Text(errorMessage)
@@ -35,12 +44,17 @@ struct AddSourceSheet: View {
 
             HStack {
                 Spacer()
+                Button(isCheckingConnection ? "Checking..." : "Check Connection") {
+                    validateConnection()
+                }
+                .buttonStyle(.bordered)
+                .disabled(!canCheckConnection)
                 Button("Cancel") { dismiss() }
                 Button(isSubmitting ? "Adding..." : "Add") {
                     submit()
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(isSubmitting || name.isEmpty || selectedType.isEmpty)
+                .disabled(isSubmitting || isCheckingConnection || name.isEmpty || selectedType.isEmpty)
             }
         }
         .padding(24)
@@ -82,15 +96,9 @@ struct AddSourceSheet: View {
                     Text(field.prompt)
                         .font(.caption)
                     if field.secret {
-                        SecureField(field.name, text: Binding(
-                            get: { credentials[field.name, default: ""] },
-                            set: { credentials[field.name] = $0 }
-                        ))
+                        SecureField(field.name, text: binding(for: field.name))
                     } else {
-                        TextField(field.name, text: Binding(
-                            get: { credentials[field.name, default: ""] },
-                            set: { credentials[field.name] = $0 }
-                        ))
+                        TextField(field.name, text: binding(for: field.name))
                     }
                 }
             }
@@ -111,6 +119,52 @@ struct AddSourceSheet: View {
             }
             isSubmitting = false
         }
+    }
+
+    private var canCheckConnection: Bool {
+        guard !isCheckingConnection, !isSubmitting, !selectedType.isEmpty else {
+            return false
+        }
+
+        let fields = viewModel.sourceTypes[selectedType]?.fields ?? []
+        return fields.allSatisfy { field in
+            !field.required || !credentials[field.name, default: ""].trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+    }
+
+    private func validateConnection() {
+        guard !isCheckingConnection else { return }
+        isCheckingConnection = true
+        errorMessage = nil
+        validationMessage = nil
+
+        Task {
+            let result = await viewModel.validateSource(type: selectedType, credentials: credentials)
+            switch result {
+            case let .success(message):
+                validationSucceeded = true
+                validationMessage = message
+            case let .failure(error):
+                validationSucceeded = false
+                validationMessage = error.errorDescription ?? "Connection check failed."
+            }
+            isCheckingConnection = false
+        }
+    }
+
+    private func binding(for fieldName: String) -> Binding<String> {
+        Binding(
+            get: { credentials[fieldName, default: ""] },
+            set: {
+                credentials[fieldName] = $0
+                clearValidationState()
+            }
+        )
+    }
+
+    private func clearValidationState() {
+        validationMessage = nil
+        validationSucceeded = nil
     }
 }
 

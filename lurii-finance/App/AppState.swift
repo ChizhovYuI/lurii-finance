@@ -59,6 +59,7 @@ final class AppState: ObservableObject {
     @Published var updateProgress: Double = 0
     @Published var updateMessage: String = ""
     @Published var updateAvailable: Bool = false
+    @Published var hideBalance: Bool = false
     @Published var updates: UpdatesResponse?
 
     private let eventStreamClient = EventStreamClient()

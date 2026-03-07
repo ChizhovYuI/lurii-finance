@@ -84,7 +84,8 @@ struct SourcesListView: View {
                 source: source,
                 fields: viewModel.sourceTypes[source.type]?.fields ?? [],
                 supportedApyRules: viewModel.sourceTypes[source.type]?.supportedApyRules ?? [],
-                onSaved: { Task { await viewModel.reload() } }
+                onSaved: { Task { await viewModel.reload() } },
+                viewModel: viewModel
             )
         }
     }

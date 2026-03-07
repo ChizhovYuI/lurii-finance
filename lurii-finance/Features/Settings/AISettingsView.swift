@@ -4,6 +4,9 @@ struct AISettingsView: View {
     @StateObject private var viewModel = SettingsViewModel()
     @State private var fieldValues: [String: String] = [:]
     @State private var statusMessage: String?
+    @State private var validationMessage: String?
+    @State private var validationSucceeded: Bool?
+    @State private var isCheckingConnection = false
     @FocusState private var focusedField: String?
 
     private var isPreview: Bool {
@@ -31,6 +34,12 @@ struct AISettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
+            if let validationMessage {
+                Text(validationMessage)
+                    .font(.caption)
+                    .foregroundStyle(validationSucceeded == true ? .green : .red)
+            }
+
             Spacer()
         }
         .padding(24)
@@ -40,6 +49,7 @@ struct AISettingsView: View {
         }
         .onChange(of: viewModel.selectedProviderType) { _, newValue in
             applyProviderSelection(type: newValue)
+            clearValidationState()
         }
         .onChange(of: viewModel.isLoading) { _, isLoading in
             // When loading finishes, refresh the form fields with updated data
@@ -64,19 +74,25 @@ struct AISettingsView: View {
                     save()
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(!isFormValid)
+                .disabled(!isFormValid || isCheckingConnection)
+
+                Button(isCheckingConnection ? "Checking..." : "Check Connection") {
+                    validateConnection()
+                }
+                .buttonStyle(.bordered)
+                .disabled(!isFormValid || isCheckingConnection)
 
                 Button("Activate") {
                     activate()
                 }
                 .buttonStyle(.bordered)
-                .disabled(isActiveProvider)
+                .disabled(isActiveProvider || isCheckingConnection)
 
                 Button("Deactivate") {
                     deactivate()
                 }
                 .buttonStyle(.bordered)
-                .disabled(viewModel.activeProvider == nil)
+                .disabled(viewModel.activeProvider == nil || isCheckingConnection)
             }
         }
     }
@@ -97,9 +113,6 @@ struct AISettingsView: View {
                     }
                 }
             }
-            
-            // Debug: Print what we're about to send
-            print("📤 Fields to send:", fieldsToSend)
             
             guard !fieldsToSend.isEmpty else {
                 statusMessage = "No changes"
@@ -172,7 +185,10 @@ struct AISettingsView: View {
         let placeholder = placeholderText(for: field)
         let binding = Binding<String>(
             get: { fieldValues[field.name, default: ""] },
-            set: { fieldValues[field.name] = $0 }
+            set: {
+                fieldValues[field.name] = $0
+                clearValidationState()
+            }
         )
         let label = fieldLabel(for: field.name)
         switch field.name {
@@ -221,6 +237,38 @@ struct AISettingsView: View {
             } else {
                 fieldValues[field.name] = configuredValue(for: field.name, config: config) ?? ""
             }
+        }
+    }
+
+    private func validateConnection() {
+        statusMessage = nil
+        guard !isCheckingConnection, isFormValid else {
+            return
+        }
+        isCheckingConnection = true
+        clearValidationState()
+
+        Task {
+            let config = viewModel.configuredProvider(for: viewModel.selectedProviderType)
+            var fieldsToSend: [String: String] = [:]
+            if let meta = viewModel.providerMeta(for: viewModel.selectedProviderType) {
+                for field in meta.fields {
+                    if let value = valueToSend(field: field, config: config) {
+                        fieldsToSend[field.name] = value
+                    }
+                }
+            }
+
+            let result = await viewModel.validateProvider(type: viewModel.selectedProviderType, fields: fieldsToSend)
+            switch result {
+            case let .success(message):
+                validationSucceeded = true
+                validationMessage = message
+            case let .failure(error):
+                validationSucceeded = false
+                validationMessage = error.errorDescription ?? "Connection check failed."
+            }
+            isCheckingConnection = false
         }
     }
 
@@ -315,28 +363,27 @@ struct AISettingsView: View {
 
     private func valueToSend(field: AIProviderField, config: AIProviderConfig?) -> String? {
         let value = fieldValues[field.name, default: ""].trimmingCharacters(in: .whitespacesAndNewlines)
-        
-        print("🔍 Field: \(field.name), isSecret: \(field.secret ?? false), fieldValue: '\(value)', configured: '\(configuredValue(for: field.name, config: config) ?? "nil")'")
-        
+
         // For secret fields that are empty, don't send them at all (let backend preserve)
         if value.isEmpty && field.secret == true {
-            print("  ➡️ Skipping empty secret field")
             return nil
         }
-        
+
         // For non-secret fields or filled secret fields, check if changed
         if value.isEmpty {
-            print("  ➡️ Skipping empty field")
             return nil
         }
         if let currentValue = configuredValue(for: field.name, config: config),
            currentValue == value {
-            print("  ➡️ Skipping unchanged field")
             return nil
         }
-        
-        print("  ✅ Sending: '\(value)'")
+
         return value
+    }
+
+    private func clearValidationState() {
+        validationMessage = nil
+        validationSucceeded = nil
     }
 
     private func fieldLabel(for fieldName: String) -> String {

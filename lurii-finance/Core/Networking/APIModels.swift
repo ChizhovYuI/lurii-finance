@@ -95,6 +95,17 @@ struct SourcePatchRequest: Codable {
     var enabled: Bool?
 }
 
+struct SourceValidationRequest: Codable {
+    let name: String?
+    let type: String?
+    let credentials: [String: String]
+}
+
+struct ConnectionValidationResponse: Codable {
+    let ok: Bool
+    let message: String
+}
+
 // MARK: - Portfolio
 
 struct PortfolioSummary: Codable {

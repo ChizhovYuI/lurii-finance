@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct StatCard: View {
+    @EnvironmentObject private var appState: AppState
     let title: String
     let value: String
     var subtitle: String? = nil
@@ -11,7 +12,7 @@ struct StatCard: View {
                 .font(DesignTokens.captionFont)
                 .foregroundStyle(.secondary)
 
-            Text(value)
+            Text(appState.hideBalance ? "••••" : value)
                 .font(DesignTokens.titleFont)
 
             if let subtitle {
@@ -33,5 +34,6 @@ struct StatCard: View {
 
 #Preview {
     StatCard(title: "Net Worth", value: "$124,500", subtitle: "Updated today")
+        .environmentObject(AppState())
         .padding()
 }

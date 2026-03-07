@@ -63,6 +63,23 @@ final class SourcesViewModel: ObservableObject {
         }
     }
 
+    func validateSource(
+        name: String? = nil,
+        type: String? = nil,
+        credentials: [String: String]
+    ) async -> Result<String, ValidationRequestError> {
+        do {
+            let response = try await APIClient.shared.validateSourceConnection(
+                SourceValidationRequest(name: name, type: type, credentials: credentials)
+            )
+            return .success(response.message)
+        } catch let error as ValidationRequestError {
+            return .failure(error)
+        } catch {
+            return .failure(.message("Connection check failed."))
+        }
+    }
+
     func reload() async {
         do {
             sources = try await APIClient.shared.getSources()

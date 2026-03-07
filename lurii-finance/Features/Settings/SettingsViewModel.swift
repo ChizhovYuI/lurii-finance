@@ -53,6 +53,17 @@ final class SettingsViewModel: ObservableObject {
         }
     }
 
+    func validateProvider(type: String, fields: [String: String]) async -> Result<String, ValidationRequestError> {
+        do {
+            let response = try await APIClient.shared.validateAIProviderConnection(type: type, fields: fields)
+            return .success(response.message)
+        } catch let error as ValidationRequestError {
+            return .failure(error)
+        } catch {
+            return .failure(.message("Connection check failed."))
+        }
+    }
+
     func activateProvider(type: String) async -> Bool {
         do {
             try await APIClient.shared.activateAIProvider(type: type)

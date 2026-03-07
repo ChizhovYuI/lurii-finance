@@ -5,6 +5,23 @@ enum APIError: Error {
     case httpStatus(Int)
 }
 
+enum ValidationRequestError: Error, LocalizedError {
+    case invalidResponse
+    case httpStatus(Int)
+    case message(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidResponse:
+            return "Invalid server response."
+        case let .httpStatus(code):
+            return "Request failed with status \(code)."
+        case let .message(message):
+            return message
+        }
+    }
+}
+
 struct APIClient {
     static let shared = APIClient()
 
@@ -35,6 +52,10 @@ struct APIClient {
 
     func createSource(_ requestBody: SourceCreateRequest) async throws {
         _ = try await requestVoid(path: APIEndpoints.sources, method: "POST", body: requestBody)
+    }
+
+    func validateSourceConnection(_ requestBody: SourceValidationRequest) async throws -> ConnectionValidationResponse {
+        try await requestValidation(path: APIEndpoints.sourceValidate, method: "POST", body: requestBody)
     }
 
     func deleteSource(name: String) async throws {
@@ -182,6 +203,10 @@ struct APIClient {
         _ = try await requestVoid(path: APIEndpoints.aiProvider(type), method: "PUT", body: fields)
     }
 
+    func validateAIProviderConnection(type: String, fields: [String: String]) async throws -> ConnectionValidationResponse {
+        try await requestValidation(path: APIEndpoints.aiProviderValidate(type), method: "POST", body: fields)
+    }
+
     func activateAIProvider(type: String) async throws {
         _ = try await requestVoid(path: APIEndpoints.aiProviderActivate(type), method: "POST")
     }
@@ -242,6 +267,36 @@ struct APIClient {
         }
         guard (200...299).contains(httpResponse.statusCode) else {
             throw APIError.httpStatus(httpResponse.statusCode)
+        }
+    }
+
+    private func requestValidation<T: Decodable>(path: String, method: String, body: Encodable? = nil) async throws -> T {
+        let url = APIEndpoints.url(path: path)
+        var request = URLRequest(url: url)
+        request.httpMethod = method
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        if let body {
+            request.httpBody = try encoder.encode(AnyEncodable(body))
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        }
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw ValidationRequestError.invalidResponse
+        }
+
+        guard (200...299).contains(httpResponse.statusCode) else {
+            if let error = try? decoder.decode(ErrorMessageResponse.self, from: data) {
+                throw ValidationRequestError.message(error.error)
+            }
+            throw ValidationRequestError.httpStatus(httpResponse.statusCode)
+        }
+
+        do {
+            return try decoder.decode(T.self, from: data)
+        } catch {
+            throw ValidationRequestError.invalidResponse
         }
     }
 }

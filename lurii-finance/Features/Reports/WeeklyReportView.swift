@@ -82,6 +82,7 @@ struct WeeklyReportView: View {
                         }
                     }
                 }
+                .blur(radius: appState.hideBalance ? 8 : 0)
             } else {
                 EmptyStateView(title: "No report yet", message: "Generate a weekly commentary.")
             }

@@ -105,14 +105,15 @@ struct EarnSummaryView: View {
     }
 
     private func positionRow(_ position: EarnPosition) -> some View {
-        HStack(spacing: 12) {
+        let hidden = appState.hideBalance
+        return HStack(spacing: 12) {
             rowCell(position.asset)
             sourceCell(position.source)
-            let amountText = ValueFormatters.number(from: position.amount) ?? position.amount ?? "—"
+            let amountText = hidden ? "••••" : (ValueFormatters.number(from: position.amount) ?? position.amount ?? "—")
             rowCell(amountText, alignment: .trailing)
             let priceText = ValueFormatters.currency(from: position.price, code: "usd") ?? position.price ?? "—"
             rowCell(priceText, alignment: .trailing)
-            let valueText = ValueFormatters.currency(from: position.usdValue, code: "usd") ?? position.usdValue ?? "—"
+            let valueText = hidden ? "••••" : (ValueFormatters.currency(from: position.usdValue, code: "usd") ?? position.usdValue ?? "—")
             rowCell(valueText, alignment: .trailing)
             let apyText = ValueFormatters.percent(from: position.apy) ?? position.apy ?? "—"
             rowCell(apyText, alignment: .trailing)
