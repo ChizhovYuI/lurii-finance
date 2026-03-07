@@ -325,6 +325,11 @@ final class AppState: ObservableObject {
         } else {
             false
         }
+        if updateStatus == "error", !updateInstalling, !restartNeeded(for: response) {
+            updateStatus = "idle"
+            updateProgress = 0
+            updateMessage = ""
+        }
         updateAvailable = response.pfm.updateAvailable || appNeedsUpdate || restartNeeded(for: response)
     }
 
