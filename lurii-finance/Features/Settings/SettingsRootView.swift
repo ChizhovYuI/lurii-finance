@@ -48,6 +48,7 @@ struct SettingsRootView: View {
 private struct AboutView: View {
     @EnvironmentObject private var appState: AppState
     @State private var openAtLogin = SMAppService.mainApp.status == .enabled
+    @State private var isCheckingUpdates = false
 
     private var updates: UpdatesResponse? { appState.updates }
 
@@ -152,6 +153,21 @@ private struct AboutView: View {
                         Text("Install Updates")
                     }
                     .buttonStyle(.borderedProminent)
+                } else {
+                    Button {
+                        forceCheckUpdates()
+                    } label: {
+                        if isCheckingUpdates {
+                            ProgressView()
+                                .controlSize(.small)
+                                .padding(.trailing, 4)
+                            Text("Checking...")
+                        } else {
+                            Image(systemName: "arrow.clockwise")
+                            Text("Check for Updates")
+                        }
+                    }
+                    .disabled(isCheckingUpdates)
                 }
             }
 
@@ -178,6 +194,23 @@ private struct AboutView: View {
         .task { await appState.checkForUpdates() }
         .onReceive(NotificationCenter.default.publisher(for: .updateCompleted)) { _ in
             Task { await appState.checkForUpdates() }
+        }
+    }
+
+    private func forceCheckUpdates() {
+        isCheckingUpdates = true
+        Task {
+            defer { isCheckingUpdates = false }
+            do {
+                let response = try await APIClient.shared.forceCheckUpdates()
+                appState.updates = response
+                let appCurrent = appVersion
+                let appNeedsUpdate = if let appCurrent, let latest = response.app.latest { latest != appCurrent } else { false }
+                appState.updateAvailable = response.pfm.updateAvailable || appNeedsUpdate || (response.restartPending == true)
+            } catch {
+                // Fall back to regular check
+                await appState.checkForUpdates()
+            }
         }
     }
 

@@ -158,6 +158,10 @@ struct APIClient {
         _ = try await requestVoid(path: APIEndpoints.updatesInstall, method: "POST", body: body)
     }
 
+    func forceCheckUpdates() async throws -> UpdatesResponse {
+        try await request(path: APIEndpoints.updatesCheck, method: "POST")
+    }
+
     func getUpdateStatus() async throws -> UpdateStatusResponse {
         try await request(path: APIEndpoints.updatesStatus, method: "GET")
     }

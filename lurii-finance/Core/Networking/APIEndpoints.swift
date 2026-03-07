@@ -47,6 +47,7 @@ enum APIEndpoints {
 
     static let updates = "/api/v1/updates"
     static let updatesInstall = "/api/v1/updates/install"
+    static let updatesCheck = "/api/v1/updates/check"
     static let updatesStatus = "/api/v1/updates/status"
     static let updatesRestart = "/api/v1/updates/restart"
 
