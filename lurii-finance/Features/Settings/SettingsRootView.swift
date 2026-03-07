@@ -46,10 +46,10 @@ struct SettingsRootView: View {
 }
 
 private struct AboutView: View {
+    @EnvironmentObject private var appState: AppState
     @State private var openAtLogin = SMAppService.mainApp.status == .enabled
-    @State private var updates: UpdatesResponse?
-    @State private var isChecking = false
-    @State private var isInstalling = false
+
+    private var updates: UpdatesResponse? { appState.updates }
 
     private var appVersion: String? {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
@@ -62,6 +62,10 @@ private struct AboutView: View {
 
     private var anyUpdateAvailable: Bool {
         (updates?.pfm.updateAvailable ?? false) || appUpdateAvailable
+    }
+
+    private var restartPending: Bool {
+        updates?.restartPending == true
     }
 
     var body: some View {
@@ -124,26 +128,31 @@ private struct AboutView: View {
                 .font(.callout.monospacedDigit())
                 .frame(maxWidth: 260)
 
-                if anyUpdateAvailable {
+                if appState.updateInstalling {
+                    VStack(spacing: 6) {
+                        ProgressView(value: appState.updateProgress)
+                            .frame(maxWidth: 260)
+                        Text(appState.updateMessage)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                } else if restartPending {
+                    Button {
+                        restartAfterUpdate()
+                    } label: {
+                        Image(systemName: "arrow.clockwise.circle")
+                        Text("Restart")
+                    }
+                    .buttonStyle(.borderedProminent)
+                } else if anyUpdateAvailable {
                     Button {
                         installUpdates()
                     } label: {
-                        if isInstalling {
-                            ProgressView()
-                                .controlSize(.small)
-                                .padding(.trailing, 4)
-                            Text("Installing...")
-                        } else {
-                            Image(systemName: "arrow.down.circle")
-                            Text("Install Updates")
-                        }
+                        Image(systemName: "arrow.down.circle")
+                        Text("Install Updates")
                     }
                     .buttonStyle(.borderedProminent)
-                    .disabled(isInstalling)
                 }
-            } else if isChecking {
-                ProgressView()
-                    .controlSize(.small)
             }
 
             Toggle("Open at Login", isOn: $openAtLogin)
@@ -166,28 +175,30 @@ private struct AboutView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(48)
-        .task { await checkForUpdates() }
-    }
-
-    private func checkForUpdates() async {
-        isChecking = true
-        defer { isChecking = false }
-        do {
-            updates = try await APIClient.shared.getUpdates()
-        } catch {
-            // Silently ignore — version info is non-critical
+        .task { await appState.checkForUpdates() }
+        .onReceive(NotificationCenter.default.publisher(for: .updateCompleted)) { _ in
+            Task { await appState.checkForUpdates() }
         }
     }
 
     private func installUpdates() {
-        isInstalling = true
         Task {
-            defer { isInstalling = false }
             do {
                 try await APIClient.shared.installUpdate(target: "all")
             } catch {
                 // Silently ignore — upgrade runs in background on the server
             }
+        }
+    }
+
+    private func restartAfterUpdate() {
+        Task {
+            do {
+                try await APIClient.shared.restartServices()
+            } catch {
+                // Ignore — server is restarting
+            }
+            NSApp.terminate(nil)
         }
     }
 }

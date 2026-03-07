@@ -26,8 +26,16 @@ struct MainShellView: View {
                 Divider()
                 
                 List(AppState.AppSection.allCases, selection: $appState.selectedSection) { section in
-                    Label(section.title, systemImage: section.systemImage)
-                        .tag(section)
+                    HStack {
+                        Label(section.title, systemImage: section.systemImage)
+                        if section == .settings && appState.updateAvailable {
+                            Spacer()
+                            Circle()
+                                .fill(.blue)
+                                .frame(width: 8, height: 8)
+                        }
+                    }
+                    .tag(section)
                 }
                 .listStyle(.sidebar)
             }

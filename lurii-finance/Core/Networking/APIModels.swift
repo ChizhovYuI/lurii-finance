@@ -380,6 +380,7 @@ struct CollectionProgressEvent: Codable {
 struct UpdatesResponse: Codable {
     let pfm: PfmVersionInfo
     let app: AppVersionInfo
+    let restartPending: Bool?
 }
 
 struct PfmVersionInfo: Codable {
@@ -394,6 +395,12 @@ struct AppVersionInfo: Codable {
 
 struct InstallUpdateRequest: Codable {
     let target: String
+}
+
+struct UpdateStatusResponse: Codable {
+    let status: String
+    let progress: Double
+    let message: String
 }
 
 // MARK: - Report

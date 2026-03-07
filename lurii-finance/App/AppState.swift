@@ -55,9 +55,16 @@ final class AppState: ObservableObject {
     @Published var collectionProgress: Double = 0
     @Published var collectionMessage: String = ""
     @Published var generatingCommentary: Bool = false
+    @Published var updateInstalling: Bool = false
+    @Published var updateProgress: Double = 0
+    @Published var updateMessage: String = ""
+    @Published var updateAvailable: Bool = false
+    @Published var updates: UpdatesResponse?
 
     private let eventStreamClient = EventStreamClient()
     private var eventStreamConfigured = false
+    private var updateCheckTask: Task<Void, Never>?
+    private static let updateCheckInterval: TimeInterval = 3600
 
     var isConnected: Bool {
         if case .connected = daemonStatus {
@@ -69,6 +76,7 @@ final class AppState: ObservableObject {
     func updateFromHealth(_ health: HealthResponse) {
         daemonStatus = .connected(version: health.version)
         collecting = health.collecting
+        startUpdateCheckLoop()
     }
 
     func updateCollectStatus(_ status: CollectStatus) {
@@ -97,6 +105,8 @@ final class AppState: ObservableObject {
     func stopEventStream() {
         eventStreamClient.disconnect()
         eventStreamConfigured = false
+        updateCheckTask?.cancel()
+        updateCheckTask = nil
     }
 
     private func syncCollectStatus() {
@@ -108,11 +118,36 @@ final class AppState: ObservableObject {
         }
     }
 
+    func checkForUpdates() async {
+        do {
+            let response = try await APIClient.shared.getUpdates()
+            updates = response
+            let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
+            let appNeedsUpdate = if let appVersion, let latest = response.app.latest { latest != appVersion } else { false }
+            updateAvailable = response.pfm.updateAvailable || appNeedsUpdate || (response.restartPending == true)
+        } catch {
+            // Non-critical — silently ignore
+        }
+    }
+
+    private func startUpdateCheckLoop() {
+        guard updateCheckTask == nil else { return }
+        updateCheckTask = Task {
+            await checkForUpdates()
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(Self.updateCheckInterval))
+                guard !Task.isCancelled else { break }
+                await checkForUpdates()
+            }
+        }
+    }
+
     func markDisconnected() {
         daemonStatus = .disconnected
         collecting = false
         collectionProgress = 0
         collectionMessage = ""
+        updateInstalling = false
     }
 
     private func handleEventMessage(_ message: String) {
@@ -188,6 +223,34 @@ final class AppState: ObservableObject {
         case "commentary_failed":
             Task { @MainActor in
                 generatingCommentary = false
+            }
+        case "update_started":
+            Task { @MainActor in
+                updateInstalling = true
+                updateProgress = 0
+                updateMessage = "Starting update..."
+            }
+        case "update_progress":
+            let progress = payload["progress"] as? Double ?? 0
+            let message = payload["message"] as? String ?? ""
+            Task { @MainActor in
+                updateInstalling = true
+                updateProgress = progress
+                updateMessage = message
+            }
+        case "update_completed":
+            Task { @MainActor in
+                updateInstalling = false
+                updateProgress = 1
+                updateMessage = "Updates installed"
+            }
+            NotificationCenter.default.post(name: .updateCompleted, object: nil)
+        case "update_failed":
+            let error = payload["error"] as? String ?? "Update failed"
+            Task { @MainActor in
+                updateInstalling = false
+                updateProgress = 0
+                updateMessage = error
             }
         default:
             if let collectingValue = payload["collecting"] as? Bool {
