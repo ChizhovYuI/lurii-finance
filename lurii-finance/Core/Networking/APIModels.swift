@@ -279,7 +279,7 @@ struct EarnSummaryResponse: Codable {
 }
 
 struct EarnPosition: Codable, Identifiable {
-    var id: String { "\(source)-\(asset)" }
+    let id: Int
     let source: String
     let asset: String
     let assetType: String?
