@@ -73,8 +73,7 @@ struct WeeklyReportView: View {
                                 SectionCard(section: section)
                             }
                         } else {
-                            Text(commentary.text)
-                                .font(DesignTokens.bodyFont)
+                            MarkdownBodyText(text: commentary.text)
                                 .padding(16)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .background(DesignTokens.cardBackground)
@@ -119,21 +118,31 @@ private struct SectionCard: View {
             Text(section.title)
                 .font(.headline)
 
-            if let attributed = try? AttributedString(
-                markdown: section.description,
-                options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
-            ) {
-                Text(attributed)
-                    .font(DesignTokens.bodyFont)
-            } else {
-                Text(section.description)
-                    .font(DesignTokens.bodyFont)
-            }
+            MarkdownBodyText(text: section.description)
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(DesignTokens.cardBackground)
         .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+}
+
+private struct MarkdownBodyText: View {
+    let text: String
+
+    var body: some View {
+        if let attributed = try? AttributedString(
+            markdown: text,
+            options: .init(interpretedSyntax: .full)
+        ) {
+            Text(attributed)
+                .font(DesignTokens.bodyFont)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        } else {
+            Text(text)
+                .font(DesignTokens.bodyFont)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 }
 
