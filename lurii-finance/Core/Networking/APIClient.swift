@@ -58,8 +58,8 @@ struct APIClient {
         try await requestValidation(path: APIEndpoints.sourceValidate, method: "POST", body: requestBody)
     }
 
-    func deleteSource(name: String) async throws {
-        _ = try await requestVoid(path: APIEndpoints.sourceDetail(name), method: "DELETE")
+    func deleteSource(name: String) async throws -> DeleteSourceResponse {
+        try await request(path: APIEndpoints.sourceDetail(name), method: "DELETE")
     }
 
     func patchSource(name: String, body: SourcePatchRequest) async throws {

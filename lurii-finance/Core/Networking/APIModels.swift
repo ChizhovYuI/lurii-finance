@@ -101,6 +101,19 @@ struct SourceValidationRequest: Codable {
     let credentials: [String: String]
 }
 
+struct DeleteSourceRemovedCounts: Codable {
+    let snapshots: Int
+    let transactions: Int
+    let analyticsMetrics: Int
+    let apyRules: Int
+}
+
+struct DeleteSourceResponse: Codable {
+    let deleted: Bool
+    let name: String
+    let removed: DeleteSourceRemovedCounts
+}
+
 struct ConnectionValidationResponse: Codable {
     let ok: Bool
     let message: String

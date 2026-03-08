@@ -1,6 +1,17 @@
 import SwiftUI
 import Combine
 
+enum DeleteSourceActionError: Error, LocalizedError {
+    case message(String)
+
+    var errorDescription: String? {
+        switch self {
+        case let .message(message):
+            return message
+        }
+    }
+}
+
 @MainActor
 final class SourcesViewModel: ObservableObject {
     @Published var sources: [SourceDTO] = []
@@ -27,15 +38,13 @@ final class SourcesViewModel: ObservableObject {
         }
     }
 
-    func deleteSources(at offsets: IndexSet) {
-        let targets = offsets.map { sources[$0] }
-        sources.remove(atOffsets: offsets)
-
-        Task {
-            for source in targets {
-                try? await APIClient.shared.deleteSource(name: source.name)
-            }
+    func deleteSource(_ source: SourceDTO) async -> Result<DeleteSourceResponse, DeleteSourceActionError> {
+        do {
+            let response = try await APIClient.shared.deleteSource(name: source.name)
             await reload()
+            return .success(response)
+        } catch {
+            return .failure(.message("Unable to delete source."))
         }
     }
 

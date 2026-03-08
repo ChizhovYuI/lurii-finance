@@ -12,9 +12,11 @@ struct SourceDetailSheet: View {
     @State private var credentials: [String: String] = [:]
     @State private var isSaving = false
     @State private var isCheckingConnection = false
+    @State private var isDeletingSource = false
     @State private var errorMessage: String?
     @State private var validationMessage: String?
     @State private var validationSucceeded: Bool?
+    @State private var showDeleteConfirmation = false
 
     @State private var apyRules: [ApyRuleDTO] = []
     @State private var isLoadingRules = false
@@ -79,18 +81,25 @@ struct SourceDetailSheet: View {
             }
 
             HStack {
+                Button(isDeletingSource ? "Deleting..." : "Delete Source") {
+                    showDeleteConfirmation = true
+                }
+                .buttonStyle(.bordered)
+                .tint(.red)
+                .disabled(isSaving || isCheckingConnection || isDeletingSource)
                 Spacer()
                 Button(isCheckingConnection ? "Checking..." : "Check Connection") {
                     validateConnection()
                 }
                 .buttonStyle(.bordered)
-                .disabled(isSaving || isCheckingConnection)
+                .disabled(isSaving || isCheckingConnection || isDeletingSource)
                 Button("Cancel") { dismiss() }
+                .disabled(isDeletingSource)
                 Button(isSaving ? "Saving..." : "Save") {
                     save()
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(isSaving || isCheckingConnection)
+                .disabled(isSaving || isCheckingConnection || isDeletingSource)
             }
         }
         .padding(24)
@@ -100,6 +109,21 @@ struct SourceDetailSheet: View {
             if !supportedApyRules.isEmpty {
                 loadRules()
             }
+        }
+        .alert("Delete Source?", isPresented: $showDeleteConfirmation) {
+            Button("Cancel", role: .cancel) {}
+            Button("Delete", role: .destructive) {
+                deleteSource()
+            }
+            .disabled(isDeletingSource)
+        } message: {
+            Text(
+                """
+                Delete '\(source.name)' permanently?
+
+                Historical snapshots and transactions for this source will be removed. APY rules for this source will be removed. Cached report and commentary data for affected dates will be cleared. Portfolio and Earn summaries will update after deletion.
+                """
+            )
         }
         .sheet(item: $ruleEditorItem) { item in
             ApyRuleEditorSheet(
@@ -188,6 +212,24 @@ struct SourceDetailSheet: View {
                 errorMessage = "Unable to update source."
             }
             isSaving = false
+        }
+    }
+
+    private func deleteSource() {
+        guard !isDeletingSource else { return }
+        isDeletingSource = true
+        errorMessage = nil
+
+        Task {
+            let result = await viewModel.deleteSource(source)
+            switch result {
+            case .success:
+                onSaved?()
+                dismiss()
+            case let .failure(error):
+                errorMessage = error.errorDescription ?? "Unable to delete source."
+            }
+            isDeletingSource = false
         }
     }
 
