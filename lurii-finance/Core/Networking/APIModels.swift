@@ -303,10 +303,15 @@ struct AICommentary: Codable {
     let model: String?
     let error: String?
     let sections: [CommentarySection]?
+    let stale: Bool?
+    let staleReason: String?
 }
 
 struct CommentaryStatus: Codable {
     let generating: Bool
+    let completedSections: Int?
+    let totalSections: Int?
+    let currentSection: String?
 }
 
 struct ErrorMessageResponse: Codable {
@@ -374,6 +379,7 @@ struct AIProviderAvailable: Codable, Identifiable {
 struct SettingsResponse: Codable {
     let aiProviders: [AIProviderConfig]
     let aiProvidersAvailable: [AIProviderAvailable]
+    let aiReportMemory: String?
 }
 
 

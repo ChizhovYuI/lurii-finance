@@ -138,14 +138,14 @@ struct APIClient {
                 return commentary
             }
             if let errorResponse = try? decoder.decode(ErrorMessageResponse.self, from: data) {
-                return AICommentary(date: "", text: "", model: nil, error: errorResponse.error, sections: nil)
+                return AICommentary(date: "", text: "", model: nil, error: errorResponse.error, sections: nil, stale: nil, staleReason: nil)
             }
             throw APIError.invalidResponse
         case 404:
             if let errorResponse = try? decoder.decode(ErrorMessageResponse.self, from: data) {
-                return AICommentary(date: "", text: "", model: nil, error: errorResponse.error, sections: nil)
+                return AICommentary(date: "", text: "", model: nil, error: errorResponse.error, sections: nil, stale: nil, staleReason: nil)
             }
-            return AICommentary(date: "", text: "", model: nil, error: "No AI commentary cached", sections: nil)
+            return AICommentary(date: "", text: "", model: nil, error: "No AI commentary cached", sections: nil, stale: nil, staleReason: nil)
         default:
             throw APIError.httpStatus(httpResponse.statusCode)
         }

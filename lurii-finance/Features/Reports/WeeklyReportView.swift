@@ -34,7 +34,7 @@ struct WeeklyReportView: View {
                 HStack(spacing: 8) {
                     ProgressView()
                         .controlSize(.small)
-                    Text("Generating report…")
+                    Text(commentaryProgressText)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -66,6 +66,19 @@ struct WeeklyReportView: View {
                             Text("AI Error: \(error)")
                                 .font(.caption)
                                 .foregroundStyle(.orange)
+                        }
+                        if commentary.stale == true {
+                            HStack(alignment: .top, spacing: 8) {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .foregroundStyle(.orange)
+                                Text(commentary.staleReason ?? "This report was generated before your report context changed. Generate again to refresh.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(12)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(DesignTokens.cardBackground)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
                         }
 
                         if let sections = commentary.sections, !sections.isEmpty {
@@ -107,6 +120,15 @@ struct WeeklyReportView: View {
                 viewModel.checkGeneratingStatus()
             }
         }
+    }
+
+    private var commentaryProgressText: String {
+        let total = appState.commentaryTotalSections
+        if total > 0, let current = appState.commentaryCurrentSection, !current.isEmpty {
+            let currentIndex = min(appState.commentaryCompletedSections + 1, total)
+            return "Generating section \(currentIndex)/\(total): \(current)…"
+        }
+        return "Generating report…"
     }
 }
 

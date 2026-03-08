@@ -5,6 +5,7 @@ import Combine
 final class SettingsViewModel: ObservableObject {
     @Published var aiProviders: [AIProviderConfig] = []
     @Published var aiProvidersAvailable: [AIProviderAvailable] = []
+    @Published var aiReportMemory: String = ""
     @Published var selectedProviderType: String = ""
     @Published var isLoading = false
     @Published var errorMessage: String?
@@ -17,8 +18,7 @@ final class SettingsViewModel: ObservableObject {
         Task {
             do {
                 let settings = try await APIClient.shared.getSettings()
-                aiProviders = settings.aiProviders
-                aiProvidersAvailable = settings.aiProvidersAvailable
+                apply(settings: settings)
                 if selectedProviderType.isEmpty {
                     selectedProviderType = activeProvider?.type ?? settings.aiProvidersAvailable.first?.type ?? ""
                 }
@@ -45,8 +45,7 @@ final class SettingsViewModel: ObservableObject {
         do {
             try await APIClient.shared.upsertAIProviderFields(type: type, fields: fields)
             let settings = try await APIClient.shared.getSettings()
-            aiProviders = settings.aiProviders
-            aiProvidersAvailable = settings.aiProvidersAvailable
+            apply(settings: settings)
             return true
         } catch {
             return false
@@ -68,8 +67,7 @@ final class SettingsViewModel: ObservableObject {
         do {
             try await APIClient.shared.activateAIProvider(type: type)
             let settings = try await APIClient.shared.getSettings()
-            aiProviders = settings.aiProviders
-            aiProvidersAvailable = settings.aiProvidersAvailable
+            apply(settings: settings)
             return true
         } catch {
             return false
@@ -80,11 +78,27 @@ final class SettingsViewModel: ObservableObject {
         do {
             try await APIClient.shared.deactivateAIProvider()
             let settings = try await APIClient.shared.getSettings()
-            aiProviders = settings.aiProviders
-            aiProvidersAvailable = settings.aiProvidersAvailable
+            apply(settings: settings)
             return true
         } catch {
             return false
         }
+    }
+
+    func saveAIReportMemory(_ memory: String) async -> Bool {
+        do {
+            try await APIClient.shared.updateSettings(["ai_report_memory": memory])
+            let settings = try await APIClient.shared.getSettings()
+            apply(settings: settings)
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    private func apply(settings: SettingsResponse) {
+        aiProviders = settings.aiProviders
+        aiProvidersAvailable = settings.aiProvidersAvailable
+        aiReportMemory = settings.aiReportMemory ?? ""
     }
 }

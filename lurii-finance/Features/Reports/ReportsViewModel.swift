@@ -72,6 +72,9 @@ final class ReportsViewModel: ObservableObject {
         Task {
             if let status = try? await APIClient.shared.getCommentaryStatus() {
                 appState?.generatingCommentary = status.generating
+                appState?.commentaryCompletedSections = status.completedSections ?? 0
+                appState?.commentaryTotalSections = status.totalSections ?? 0
+                appState?.commentaryCurrentSection = status.currentSection
             }
         }
     }
