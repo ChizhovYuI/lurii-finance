@@ -254,13 +254,15 @@ private struct AboutView: View {
 
     private func restartAfterUpdate() {
         Task {
-            AppRelauncher.scheduleRelaunch()
             do {
                 try await APIClient.shared.restartServices()
+                AppRelauncher.scheduleRelaunch()
+                NSApp.terminate(nil)
             } catch {
-                // Ignore — server is restarting
+                appState.updateStatus = "error"
+                appState.updateInstalling = false
+                appState.updateMessage = error.localizedDescription
             }
-            NSApp.terminate(nil)
         }
     }
 }

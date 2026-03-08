@@ -1,8 +1,20 @@
 import Foundation
 
-enum APIError: Error {
+enum APIError: Error, LocalizedError {
     case invalidResponse
     case httpStatus(Int)
+    case message(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidResponse:
+            return "Invalid server response."
+        case let .httpStatus(code):
+            return "Request failed with status \(code)."
+        case let .message(message):
+            return message
+        }
+    }
 }
 
 enum ValidationRequestError: Error, LocalizedError {
@@ -261,11 +273,14 @@ struct APIClient {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         }
 
-        let (_, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await URLSession.shared.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw APIError.invalidResponse
         }
         guard (200...299).contains(httpResponse.statusCode) else {
+            if let error = try? decoder.decode(ErrorMessageResponse.self, from: data) {
+                throw APIError.message(error.error)
+            }
             throw APIError.httpStatus(httpResponse.statusCode)
         }
     }
