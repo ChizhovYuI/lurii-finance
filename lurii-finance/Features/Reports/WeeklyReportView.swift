@@ -154,7 +154,7 @@ private struct MarkdownBodyText: View {
     let text: String
 
     private var blocks: [MarkdownBlock] {
-        MarkdownBlockParser.parse(MarkdownNormalizer.normalize(text))
+        MarkdownBlockParser.parse(text)
     }
 
     var body: some View {
@@ -187,42 +187,6 @@ private struct MarkdownBodyText: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
-private enum MarkdownNormalizer {
-    static func normalize(_ raw: String) -> String {
-        guard !raw.isEmpty else { return raw }
-
-        var text = raw.replacingOccurrences(of: "\r\n", with: "\n")
-        text = text.replacingOccurrences(of: "\r", with: "\n")
-
-        let listPatterns = [
-            #"[ \t]+(-\s+\*\*[^:\n]+:)"#,
-            #"[ \t]+(-\s+[^-\n][^\n]*)"#,
-        ]
-
-        for pattern in listPatterns {
-            text = text.replacingOccurrences(
-                of: pattern,
-                with: "\n\n$1",
-                options: .regularExpression
-            )
-        }
-
-        text = text.replacingOccurrences(
-            of: #"([.!?:;])[ \t]+(\d+\.\s)"#,
-            with: "$1\n\n$2",
-            options: .regularExpression
-        )
-
-        text = text.replacingOccurrences(
-            of: #"\n{3,}"#,
-            with: "\n\n",
-            options: .regularExpression
-        )
-
-        return text.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 
