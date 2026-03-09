@@ -253,7 +253,7 @@
 				CODE_SIGN_ENTITLEMENTS = "lurii-finance/lurii-finance.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 11;
+				CURRENT_PROJECT_VERSION = 12;
 				DEVELOPMENT_TEAM = 528U2S7KR9;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -266,7 +266,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 2.9.10;
+				MARKETING_VERSION = 2.9.11;
 				PRODUCT_BUNDLE_IDENTIFIER = "lurii.lurii-finance";
 				PRODUCT_NAME = "Lurii Finance";
 				REGISTER_APP_GROUPS = YES;
@@ -287,7 +287,7 @@
 				CODE_SIGN_ENTITLEMENTS = "lurii-finance/lurii-finance.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 11;
+				CURRENT_PROJECT_VERSION = 12;
 				DEVELOPMENT_TEAM = 528U2S7KR9;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -300,7 +300,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 2.9.10;
+				MARKETING_VERSION = 2.9.11;
 				PRODUCT_BUNDLE_IDENTIFIER = "lurii.lurii-finance";
 				PRODUCT_NAME = "Lurii Finance";
 				REGISTER_APP_GROUPS = YES;
