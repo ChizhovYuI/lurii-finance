@@ -5,6 +5,10 @@ struct DashboardView: View {
     @StateObject private var viewModel: DashboardViewModel
     @State private var allocationFilter = ""
     @State private var hideLowValues = true
+    @State private var isPreparingCashEntry = false
+    @State private var cashEntryErrorMessage: String?
+    @State private var cashManualState: CashManualState?
+    @State private var showCashSheet = false
 
     @MainActor init(viewModel: DashboardViewModel = DashboardViewModel()) {
         _viewModel = StateObject(wrappedValue: viewModel)
@@ -20,6 +24,11 @@ struct DashboardView: View {
                 header
                 CollectionProgressBar(isCollecting: appState.collecting, progress: appState.collectionProgress, message: appState.collectionMessage)
                     .frame(maxWidth: .infinity)
+                if let cashEntryErrorMessage {
+                    Text(cashEntryErrorMessage)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
 
                 if viewModel.isLoading {
                     ProgressView("Loading portfolio...")
@@ -44,6 +53,16 @@ struct DashboardView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .snapshotUpdated)) { _ in
             viewModel.load()
+        }
+        .sheet(isPresented: $showCashSheet, onDismiss: { cashManualState = nil }) {
+            if let cashManualState {
+                CashManualSheet(state: cashManualState) {
+                    viewModel.load()
+                }
+            } else {
+                ProgressView("Loading cash editor...")
+                    .padding(24)
+            }
         }
     }
 
@@ -76,6 +95,13 @@ struct DashboardView: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
+
+            Button(isPreparingCashEntry ? "Add Cash..." : "Add Cash") {
+                prepareCashEntry()
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .disabled(isPreparingCashEntry)
 
             Button("Collect") {
                 Task {
@@ -301,6 +327,42 @@ struct DashboardView: View {
         }
         return nil
     }
+
+    private func prepareCashEntry() {
+        guard !isPreparingCashEntry else { return }
+        isPreparingCashEntry = true
+        cashEntryErrorMessage = nil
+
+        Task { @MainActor in
+            do {
+                try await ensureCashSourceExists()
+                cashManualState = try await APIClient.shared.getCashManual()
+                showCashSheet = true
+            } catch {
+                cashEntryErrorMessage = "Unable to open Cash editor: \(error.localizedDescription)"
+            }
+            isPreparingCashEntry = false
+        }
+    }
+
+    private func ensureCashSourceExists() async throws {
+        let existingSources = try await APIClient.shared.getSources()
+        if existingSources.contains(where: { $0.type.lowercased() == "cash" }) {
+            return
+        }
+
+        do {
+            try await APIClient.shared.createSource(
+                SourceCreateRequest(
+                    name: "cash",
+                    type: "cash",
+                    credentials: ["fiat_currencies": "USD"]
+                )
+            )
+        } catch {
+            // Another client may have created the source in parallel.
+        }
+    }
 }
 
 @MainActor
@@ -476,4 +538,3 @@ private struct TooltipCard: View {
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 }
-

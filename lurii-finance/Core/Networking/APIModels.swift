@@ -212,6 +212,25 @@ struct SnapshotDTO: Codable, Identifiable {
     let usdValue: String
 }
 
+struct CashBalance: Codable {
+    let amount: String
+    let usdValue: String
+    let price: String
+}
+
+struct CashManualState: Codable {
+    let sourceName: String
+    let selectedCurrencies: [String]
+    let supportedCurrencies: [String]
+    let latestSnapshotDate: String?
+    let balances: [String: CashBalance]
+}
+
+struct CashManualUpsertRequest: Codable {
+    let selectedCurrencies: [String]
+    let balances: [String: String]
+}
+
 // MARK: - Analytics
 
 struct PnlResponse: Codable {

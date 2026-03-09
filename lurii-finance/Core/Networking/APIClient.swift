@@ -78,6 +78,14 @@ struct APIClient {
         _ = try await requestVoid(path: APIEndpoints.sourceDetail(name), method: "PATCH", body: body)
     }
 
+    func getCashManual() async throws -> CashManualState {
+        try await request(path: APIEndpoints.cashManual, method: "GET")
+    }
+
+    func upsertCashManual(_ requestBody: CashManualUpsertRequest) async throws -> CashManualState {
+        try await request(path: APIEndpoints.cashManual, method: "PUT", body: requestBody)
+    }
+
     // MARK: - APY Rules
 
     func getApyRules(sourceName: String) async throws -> [ApyRuleDTO] {
