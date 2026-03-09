@@ -211,7 +211,7 @@ private enum MarkdownNormalizer {
         }
 
         text = text.replacingOccurrences(
-            of: #"([.!?])[ \t]+(\d+\.\s)"#,
+            of: #"([.!?:;])[ \t]+(\d+\.\s)"#,
             with: "$1\n\n$2",
             options: .regularExpression
         )
