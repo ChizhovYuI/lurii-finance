@@ -3,6 +3,7 @@ import SwiftUI
 struct EarnSummaryView: View {
     @EnvironmentObject private var appState: AppState
     @StateObject private var viewModel = EarnSummaryViewModel()
+    @State private var filter = ""
 
     private var isPreview: Bool {
         ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
@@ -67,21 +68,39 @@ struct EarnSummaryView: View {
     }
 
     private func positionsTable(_ summary: EarnSummaryResponse) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Positions")
-                .font(.headline)
+        let sorted = summary.positions.sorted { lhs, rhs in
+            let l = Decimal(string: lhs.apy ?? "0") ?? 0
+            let r = Decimal(string: rhs.apy ?? "0") ?? 0
+            return l > r
+        }
+        let tokens = filter.lowercased()
+            .split(whereSeparator: { $0.isWhitespace }).map(String.init)
+        let filtered: [EarnPosition] = if tokens.isEmpty {
+            sorted
+        } else {
+            sorted.filter { position in
+                let haystack = [position.asset.lowercased(), position.source.lowercased()]
+                return tokens.allSatisfy { token in haystack.contains { $0.contains(token) } }
+            }
+        }
+
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                Text("Positions")
+                    .font(.headline)
+                Spacer()
+                TextField("Filter by asset, source", text: $filter)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(maxWidth: 260)
+            }
 
             headerRow
 
-            if summary.positions.isEmpty {
+            if filtered.isEmpty {
                 Text("No yield-bearing positions")
                     .foregroundStyle(.secondary)
             } else {
-                ForEach(summary.positions.sorted { lhs, rhs in
-                    let l = Decimal(string: lhs.apy ?? "0") ?? 0
-                    let r = Decimal(string: rhs.apy ?? "0") ?? 0
-                    return l > r
-                }) { position in
+                ForEach(filtered) { position in
                     positionRow(position)
                 }
             }
