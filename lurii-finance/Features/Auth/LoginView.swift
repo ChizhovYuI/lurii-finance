@@ -59,12 +59,12 @@ struct LoginView: View {
                 return
             }
 
-            // Give daemon time to boot
-            try? await Task.sleep(for: .seconds(2))
-
-            // Retry
-            statusMessage = "Connecting..."
-            if await tryConnect() { return }
+            // Retry up to 5 times, waiting 2 seconds between attempts
+            for attempt in 1...5 {
+                try? await Task.sleep(for: .seconds(2))
+                statusMessage = "Connecting... (attempt \(attempt)/5)"
+                if await tryConnect() { return }
+            }
 
             fail("Daemon started but not responding. Check pfm daemon status.")
         }
