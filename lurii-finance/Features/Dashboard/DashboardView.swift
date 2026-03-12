@@ -3,8 +3,6 @@ import SwiftUI
 struct DashboardView: View {
     @EnvironmentObject private var appState: AppState
     @StateObject private var viewModel: DashboardViewModel
-    @State private var allocationFilter = ""
-    @State private var hideLowValues = true
     @State private var isPreparingCashEntry = false
     @State private var cashEntryErrorMessage: String?
     @State private var cashManualState: CashManualState?
@@ -21,7 +19,6 @@ struct DashboardView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                header
                 CollectionProgressBar(isCollecting: appState.collecting, progress: appState.collectionProgress, message: appState.collectionMessage)
                     .frame(maxWidth: .infinity)
                 if let cashEntryErrorMessage {
@@ -39,10 +36,45 @@ struct DashboardView: View {
                 } else {
                     warningsSection
                     statCards
-                    allocationSection
                 }
             }
-            .padding(24)
+            .padding(.leading, DesignTokens.pageContentPadding)
+            .padding(.trailing, DesignTokens.pageContentTrailingPadding)
+            .padding(.top, DesignTokens.pageContentPadding)
+            .padding(.bottom, DesignTokens.pageContentPadding)
+        }
+        .navigationTitle("Dashboard")
+        .toolbar {
+            ToolbarItemGroup(placement: .primaryAction) {
+                Button(isPreparingCashEntry ? "Add Cash..." : "Add Cash") {
+                    prepareCashEntry()
+                }
+                .buttonStyle(.glass)
+                .buttonBorderShape(.capsule)
+                .disabled(isPreparingCashEntry)
+
+                Button("Collect") {
+                    Task {
+                        _ = try? await APIClient.shared.startCollect(source: nil)
+                        if let status = try? await APIClient.shared.getCollectStatus() {
+                            appState.updateCollectStatus(status)
+                        }
+                    }
+                }
+                .buttonStyle(.glassProminent)
+                .buttonBorderShape(.capsule)
+            }
+
+            ToolbarItem(placement: .status) {
+                switch appState.daemonStatus {
+                case .connected(let version):
+                    SyncStatusBar(isConnected: true, version: version)
+                case .disconnected:
+                    SyncStatusBar(isConnected: false, version: nil)
+                case .unknown:
+                    SyncStatusBar(isConnected: false, version: nil)
+                }
+            }
         }
         .onAppear {
             guard !isPreview else { return }
@@ -62,65 +94,6 @@ struct DashboardView: View {
             } else {
                 ProgressView("Loading cash editor...")
                     .padding(24)
-            }
-        }
-    }
-
-    private var header: some View {
-        HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Portfolio Overview")
-                    .font(.title2)
-                if let date = viewModel.summary?.date {
-                    Text("As of \(date)")
-                        .foregroundStyle(.secondary)
-                        .font(.caption)
-                }
-            }
-
-            Spacer()
-
-            Button {
-                appState.hideBalance.toggle()
-            } label: {
-                Image(systemName: appState.hideBalance ? "eye.slash" : "eye")
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
-
-            Button {
-                viewModel.load()
-            } label: {
-                Image(systemName: "arrow.clockwise")
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
-
-            Button(isPreparingCashEntry ? "Add Cash..." : "Add Cash") {
-                prepareCashEntry()
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
-            .disabled(isPreparingCashEntry)
-
-            Button("Collect") {
-                Task {
-                    _ = try? await APIClient.shared.startCollect(source: nil)
-                    if let status = try? await APIClient.shared.getCollectStatus() {
-                        appState.updateCollectStatus(status)
-                    }
-                }
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.small)
-
-            switch appState.daemonStatus {
-            case .connected(let version):
-                SyncStatusBar(isConnected: true, version: version)
-            case .disconnected:
-                SyncStatusBar(isConnected: false, version: nil)
-            case .unknown:
-                SyncStatusBar(isConnected: false, version: nil)
             }
         }
     }
@@ -148,184 +121,10 @@ struct DashboardView: View {
                         .foregroundStyle(.orange)
                 }
             }
-            .padding(12)
+            .padding(DesignTokens.blockPadding)
             .background(DesignTokens.cardBackground)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .clipShape(RoundedRectangle(cornerRadius: DesignTokens.blockCornerRadius))
         }
-    }
-
-    private var allocationSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 12) {
-                Text("Allocation")
-                    .font(.headline)
-                Spacer()
-                Toggle("Hide < $1", isOn: $hideLowValues)
-                    .toggleStyle(.checkbox)
-                    .font(.caption)
-                TextField("Filter by asset, source, type", text: $allocationFilter)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(maxWidth: 260)
-            }
-
-            allocationHeader
-
-            let filteredRows = filteredAllocationRows()
-            if !filteredRows.isEmpty {
-                ForEach(filteredRows) { row in
-                    allocationRow(row)
-                }
-            } else {
-                Text("No allocation data yet")
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .padding(16)
-        .background(DesignTokens.cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-    }
-
-    private var allocationHeader: some View {
-        HStack(spacing: 12) {
-            headerCell("Asset")
-            headerCell("Source")
-            headerCell("Amount", alignment: .trailing)
-            headerCell("Price", alignment: .trailing)
-            headerCell("Value", alignment: .trailing)
-            headerCell("% Of Net Value", alignment: .trailing)
-            headerCell("Type", alignment: .trailing)
-        }
-        .font(.caption)
-        .foregroundStyle(.secondary)
-    }
-
-    private func allocationRow(_ row: AllocationGroupRow) -> some View {
-        let hidden = appState.hideBalance
-        return HStack(spacing: 12) {
-            rowCell(row.asset)
-            sourceCell(sources: row.sources, asset: row.asset)
-            let amountText = hidden ? "••••" : (ValueFormatters.number(from: row.amount) ?? row.amount ?? "—")
-            rowCell(amountText, alignment: .trailing)
-            let priceText = ValueFormatters.currency(from: row.price, code: "usd") ?? row.price ?? "—"
-            rowCell(priceText, alignment: .trailing)
-            let valueText = hidden ? "••••" : (ValueFormatters.currency(from: row.usdValue, code: "usd") ?? row.usdValue ?? "—")
-            rowCell(valueText, alignment: .trailing)
-            let percentText = hidden ? "••••" : (ValueFormatters.percentFromPercentValue(row.percentage) ?? row.percentage ?? "—")
-            rowCell(percentText, alignment: .trailing)
-            if let type = row.assetType {
-                rowCell(type.uppercased(), alignment: .trailing)
-            } else {
-                rowCell("—", alignment: .trailing)
-            }
-        }
-        .font(.subheadline)
-    }
-
-    @ViewBuilder
-    private func sourceCell(sources: [SourceAllocation], asset: String) -> some View {
-        let items: [SourceIconItem] = sources.compactMap { source in
-            guard let iconName = source.source.sourceIconName() else { return nil }
-            let displayName = source.sourceName ?? source.source
-            let valueText = ValueFormatters.currency(from: source.usdValue, code: "usd") ?? source.usdValue ?? "—"
-            let amountText = ValueFormatters.number(from: source.amount) ?? source.amount ?? "—"
-            let tooltip = "\(displayName)\n\(asset) \(amountText)\n\(valueText)"
-            return SourceIconItem(iconName: iconName, tooltip: tooltip)
-        }
-        if items.isEmpty {
-            rowCell(sourcesText(sources))
-        } else {
-            SourceIconsPopover(items: items)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-
-    private func sourcesText(_ sources: [SourceAllocation]) -> String {
-        let joined = sources.map { $0.sourceName ?? $0.source }.joined(separator: ", ")
-        return joined.isEmpty ? "—" : joined
-    }
-
-    private func headerCell(_ text: String, alignment: Alignment = .leading) -> some View {
-        Text(text)
-            .frame(maxWidth: .infinity, alignment: alignment)
-    }
-
-    private func rowCell(_ text: String, alignment: Alignment = .leading) -> some View {
-        Text(text)
-            .frame(maxWidth: .infinity, alignment: alignment)
-    }
-
-    private func filteredAllocationRows() -> [AllocationGroupRow] {
-        let tokens = allocationFilter
-            .lowercased()
-            .split(whereSeparator: { $0.isWhitespace })
-            .map(String.init)
-        return groupedAllocationRows(filter: tokens, hideLowValues: hideLowValues)
-    }
-
-    private func groupedAllocationRows(filter tokens: [String] = [], hideLowValues: Bool = false) -> [AllocationGroupRow] {
-        var holdings = viewModel.summary?.holdings ?? []
-
-        if hideLowValues {
-            holdings = holdings.filter { holding in
-                guard let usd = holding.usdValue, let value = Decimal(string: usd) else { return true }
-                return value >= 1
-            }
-        }
-
-        if !tokens.isEmpty {
-            let matched = holdings.filter { holding in
-                let haystack = holdingHaystack(for: holding)
-                return tokens.allSatisfy { token in
-                    haystack.contains { $0.contains(token) }
-                }
-            }
-            if !matched.isEmpty {
-                holdings = matched
-            }
-        }
-
-        let netWorthDecimal = netWorthUSD()
-        var groups: [String: AllocationGroupAccumulator] = [:]
-
-        for holding in holdings {
-            let key = "\(holding.asset)|\(holding.assetType ?? "")"
-            var group = groups[key] ?? AllocationGroupAccumulator(asset: holding.asset, assetType: holding.assetType)
-            group.append(holding)
-            groups[key] = group
-        }
-
-        return groups.values
-            .map { $0.build(netWorth: netWorthDecimal) }
-            .sorted { lhs, rhs in
-                let left = Decimal(string: lhs.usdValue ?? "0") ?? 0
-                let right = Decimal(string: rhs.usdValue ?? "0") ?? 0
-                if left != right {
-                    return left > right
-                }
-                return lhs.asset < rhs.asset
-            }
-    }
-
-    private func holdingHaystack(for holding: AllocationRow) -> [String] {
-        var values: [String] = [holding.asset.lowercased()]
-        if let name = holding.sourceName?.lowercased() {
-            values.append(name)
-        }
-        if let type = holding.assetType?.lowercased(), !type.isEmpty {
-            values.append(type)
-        }
-        return values
-    }
-
-    private func netWorthUSD() -> Decimal? {
-        guard let summary = viewModel.summary else { return nil }
-        if let usdValue = summary.netWorth?["usd"], let decimal = Decimal(string: usdValue) {
-            return decimal
-        }
-        if let firstValue = summary.netWorth?.values.first, let decimal = Decimal(string: firstValue) {
-            return decimal
-        }
-        return nil
     }
 
     private func prepareCashEntry() {
@@ -397,144 +196,4 @@ private struct DashboardPreviewHost: View {
 
 #Preview {
     DashboardPreviewHost()
-}
-
-private struct SourceIconItem: Identifiable {
-    let id = UUID()
-    let iconName: String
-    let tooltip: String
-}
-
-private struct SourceAllocation: Identifiable {
-    var id: String { sourceName ?? source }
-    let source: String
-    let sourceName: String?
-    let amount: String?
-    let usdValue: String?
-}
-
-private struct AllocationGroupRow: Identifiable {
-    var id: String { "\(asset)-\(assetType ?? "")" }
-    let asset: String
-    let assetType: String?
-    let sources: [SourceAllocation]
-    let amount: String?
-    let usdValue: String?
-    let price: String?
-    let percentage: String?
-}
-
-private struct AllocationGroupAccumulator {
-    let asset: String
-    let assetType: String?
-    private(set) var sources: [SourceAllocation] = []
-    private var amountSum: Decimal?
-    private var usdSum: Decimal?
-    private var priceValue: String?
-
-    init(asset: String, assetType: String?) {
-        self.asset = asset
-        self.assetType = assetType
-    }
-
-    mutating func append(_ holding: AllocationRow) {
-        if let amount = holding.amount, let decimal = Decimal(string: amount) {
-            amountSum = (amountSum ?? 0) + decimal
-        }
-        if let usdValue = holding.usdValue, let decimal = Decimal(string: usdValue) {
-            usdSum = (usdSum ?? 0) + decimal
-        }
-        if priceValue == nil, let price = holding.price, !price.isEmpty {
-            priceValue = price
-        }
-
-        let sourceType = holding.sources.first ?? ""
-        sources.append(SourceAllocation(source: sourceType, sourceName: holding.sourceName, amount: holding.amount, usdValue: holding.usdValue))
-    }
-
-    func build(netWorth: Decimal?) -> AllocationGroupRow {
-        let amount = amountSum.map { NSDecimalNumber(decimal: $0).stringValue }
-        let usdValue = usdSum.map { NSDecimalNumber(decimal: $0).stringValue }
-        let percentage: String?
-        if let netWorth, netWorth > 0, let usdSum {
-            let percent = (usdSum / netWorth) * 100
-            percentage = NSDecimalNumber(decimal: percent).stringValue
-        } else {
-            percentage = nil
-        }
-        return AllocationGroupRow(
-            asset: asset,
-            assetType: assetType,
-            sources: sources,
-            amount: amount,
-            usdValue: usdValue,
-            price: priceValue,
-            percentage: percentage
-        )
-    }
-}
-
-private struct SourceIconsPopover: View {
-    let items: [SourceIconItem]
-    @State private var presentedIndex: Int? = nil
-    var body: some View {
-        ZStack(alignment: .leading) {
-            ForEach(Array(items.enumerated()), id: \.offset) { index, item in
-                Button {
-                    if presentedIndex == index {
-                        presentedIndex = nil
-                    } else {
-                        presentedIndex = nil
-                        DispatchQueue.main.async {
-                            presentedIndex = index
-                        }
-                    }
-                } label: {
-                    Image(item.iconName)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: 24, height: 24)
-                        .clipShape(Circle())
-                        .background(Circle().fill(Color.white))
-                        .overlay(
-                            Circle()
-                                .stroke(Color.white.opacity(0.2), lineWidth: 2)
-                        )
-                        .shadow(color: Color.black.opacity(0.2), radius: 2, x: 0, y: 1)
-                }
-                .buttonStyle(.plain)
-                .offset(x: CGFloat(index) * 18)
-                .popover(isPresented: Binding(
-                    get: { presentedIndex == index },
-                    set: { isPresented in
-                        presentedIndex = isPresented ? index : nil
-                    }
-                )) {
-                    TooltipCard(text: item.tooltip)
-                        .presentationBackground(.clear)
-                }
-            }
-        }
-        .frame(width: totalWidth, height: 24, alignment: .leading)
-    }
-
-    private var totalWidth: CGFloat {
-        let count = max(items.count, 1)
-        return 24 + CGFloat(count - 1) * 18
-    }
-}
-
-private struct TooltipCard: View {
-    let text: String
-
-    var body: some View {
-        Text(text)
-            .textSelection(.enabled)
-            .font(.footnote)
-            .foregroundStyle(.primary)
-            .frame(maxWidth: 240, alignment: .leading)
-            .padding(6)
-            .background(.ultraThinMaterial)
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-    }
 }

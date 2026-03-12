@@ -23,10 +23,12 @@ final class AppState: ObservableObject {
 
     enum AppSection: String, CaseIterable, Identifiable {
         case dashboard
+        case allocation
         case earn
-        case sources
         case reports
-        case settings
+        case sources
+        case ai
+        case about
 
         var id: String { rawValue }
 
@@ -34,14 +36,18 @@ final class AppState: ObservableObject {
             switch self {
             case .dashboard:
                 return "Dashboard"
+            case .allocation:
+                return "Allocation"
             case .earn:
                 return "Earn"
-            case .sources:
-                return "Sources"
             case .reports:
                 return "Reports"
-            case .settings:
-                return "Settings"
+            case .sources:
+                return "Sources"
+            case .ai:
+                return "AI"
+            case .about:
+                return "About"
             }
         }
 
@@ -49,14 +55,18 @@ final class AppState: ObservableObject {
             switch self {
             case .dashboard:
                 return "chart.bar.xaxis"
+            case .allocation:
+                return "chart.pie"
             case .earn:
                 return "percent"
-            case .sources:
-                return "tray.full"
             case .reports:
                 return "doc.text"
-            case .settings:
-                return "gearshape"
+            case .sources:
+                return "tray.full"
+            case .ai:
+                return "sparkles"
+            case .about:
+                return "info.circle"
             }
         }
     }
@@ -76,6 +86,7 @@ final class AppState: ObservableObject {
     @Published var updateMessage: String = ""
     @Published var updateAvailable: Bool = false
     @Published var hideBalance: Bool = false
+    @Published var globalSearchQuery: String = ""
     @Published var updates: UpdatesResponse?
     @Published var webSyncStatuses: [String: WebSyncStatus] = [:]
 
@@ -118,6 +129,11 @@ final class AppState: ObservableObject {
 
     var restartNeeded: Bool {
         restartNeeded(for: updates) || updateStatus == "installed"
+    }
+
+    var hasInstallableUpdate: Bool {
+        guard let updates else { return false }
+        return hasAnyInstallableUpdate(updates)
     }
 
     func updateFromHealth(_ health: HealthResponse) {
@@ -208,6 +224,20 @@ final class AppState: ObservableObject {
             return
         case let .failed(message):
             applyInstallFailure(message: message)
+        }
+    }
+
+    func restartAfterUpdate() {
+        Task { @MainActor in
+            do {
+                try await APIClient.shared.restartServices()
+                AppRelauncher.scheduleRelaunch()
+                NSApp.terminate(nil)
+            } catch {
+                updateStatus = "error"
+                updateInstalling = false
+                updateMessage = error.localizedDescription
+            }
         }
     }
 

@@ -25,9 +25,9 @@ struct CollectionProgressBar: View {
                 ProgressView(value: progress)
             }
         }
-        .padding(12)
+        .padding(DesignTokens.blockPadding)
         .background(DesignTokens.cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .clipShape(RoundedRectangle(cornerRadius: DesignTokens.blockCornerRadius))
     }
 
     private var statusText: String {

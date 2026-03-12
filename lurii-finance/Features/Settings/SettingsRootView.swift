@@ -1,51 +1,7 @@
 import ServiceManagement
 import SwiftUI
 
-struct SettingsRootView: View {
-    enum Section: String, CaseIterable, Identifiable {
-        case about
-        case ai
-
-        var id: String { rawValue }
-
-        var title: String {
-            switch self {
-            case .about:
-                return "About"
-            case .ai:
-                return "AI"
-            }
-        }
-    }
-
-    @State private var selectedSection: Section = .about
-
-    var body: some View {
-        HStack(spacing: 0) {
-            List(Section.allCases, selection: $selectedSection) { section in
-                Text(section.title)
-                    .tag(section)
-            }
-            .listStyle(.sidebar)
-            .frame(minWidth: 200, idealWidth: 220, maxWidth: 260)
-
-            Divider()
-
-            Group {
-                switch selectedSection {
-                case .about:
-                    AboutView()
-                case .ai:
-                    AISettingsView()
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-        .navigationTitle("Settings")
-    }
-}
-
-private struct AboutView: View {
+struct AboutSettingsView: View {
     @EnvironmentObject private var appState: AppState
     @State private var openAtLogin = SMAppService.mainApp.status == .enabled
     @State private var isCheckingUpdates = false
@@ -97,15 +53,11 @@ private struct AboutView: View {
 
     var body: some View {
         VStack(spacing: 20) {
-            Image("app-logo")
+            Image(nsImage: NSImage(named: "AppIcon") ?? NSImage())
                 .resizable()
                 .frame(width: 128, height: 128)
                 .clipShape(RoundedRectangle(cornerRadius: 28))
                 .shadow(color: .black.opacity(0.2), radius: 10, x: 0, y: 5)
-
-            Text("Lurii Finance")
-                .font(.title)
-                .fontWeight(.semibold)
 
             if let version = appVersion,
                let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String {
@@ -162,12 +114,13 @@ private struct AboutView: View {
                     }
                 } else if restartPending {
                     Button {
-                        restartAfterUpdate()
+                        appState.restartAfterUpdate()
                     } label: {
                         Image(systemName: "arrow.clockwise.circle")
                         Text("Restart")
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.glassProminent)
+                    .buttonBorderShape(.capsule)
                 } else if anyUpdateAvailable {
                     Button {
                         installUpdates()
@@ -175,7 +128,8 @@ private struct AboutView: View {
                         Image(systemName: "arrow.down.circle")
                         Text("Install Updates")
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.glassProminent)
+                    .buttonBorderShape(.capsule)
                 } else {
                     Button {
                         forceCheckUpdates()
@@ -190,6 +144,8 @@ private struct AboutView: View {
                             Text("Check for Updates")
                         }
                     }
+                    .buttonStyle(.glass)
+                    .buttonBorderShape(.capsule)
                     .disabled(isCheckingUpdates)
                 }
 
@@ -222,6 +178,7 @@ private struct AboutView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(48)
+        .navigationTitle("About")
         .task { await appState.syncUpdateStatus() }
         .onReceive(NotificationCenter.default.publisher(for: .updateCompleted)) { _ in
             Task { await appState.syncUpdateStatus() }
@@ -241,22 +198,9 @@ private struct AboutView: View {
             await appState.installUpdatesManually()
         }
     }
-
-    private func restartAfterUpdate() {
-        Task {
-            do {
-                try await APIClient.shared.restartServices()
-                AppRelauncher.scheduleRelaunch()
-                NSApp.terminate(nil)
-            } catch {
-                appState.updateStatus = "error"
-                appState.updateInstalling = false
-                appState.updateMessage = error.localizedDescription
-            }
-        }
-    }
 }
 
 #Preview {
-    SettingsRootView()
+    AboutSettingsView()
+        .environmentObject(AppState())
 }

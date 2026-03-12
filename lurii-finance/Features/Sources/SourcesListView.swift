@@ -8,6 +8,7 @@ struct SourcesListView: View {
     @State private var pendingDeletionSource: SourceDTO?
     @State private var isDeletingSource = false
     @State private var deleteErrorMessage: String?
+    @State private var filter = ""
 
     private var isPreview: Bool {
         ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
@@ -15,25 +16,28 @@ struct SourcesListView: View {
 
     private var missingWebSyncProviders: [WebSyncProvider] {
         WebSyncProvider.allCases.filter { provider in
-            !viewModel.sources.contains(where: { $0.type.lowercased() == provider.sourceType })
+            !viewModel.sources.contains(where: { $0.type.lowercased() == provider.sourceType }) && providerMatches(provider)
         }
+    }
+
+    private var filteredSources: [SourceDTO] {
+        viewModel.sources.filter(sourceMatches)
+    }
+
+    private var localTokens: [String] {
+        filter.lowercased()
+            .split(whereSeparator: { $0.isWhitespace })
+            .map(String.init)
+    }
+
+    private var globalTokens: [String] {
+        appState.globalSearchQuery.lowercased()
+            .split(whereSeparator: { $0.isWhitespace })
+            .map(String.init)
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Text("Sources")
-                    .font(.title2)
-
-                Spacer()
-
-                Button("Add Source") {
-                    showAddSheet = true
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(isDeletingSource)
-            }
-
             if let deleteErrorMessage {
                 Text(deleteErrorMessage)
                     .foregroundStyle(.red)
@@ -49,7 +53,43 @@ struct SourcesListView: View {
                 sourcesList
             }
         }
-        .padding(24)
+        .padding(.leading, DesignTokens.pageContentPadding)
+        .padding(.trailing, DesignTokens.pageContentTrailingPadding)
+        .padding(.top, DesignTokens.pageContentPadding)
+        .padding(.bottom, DesignTokens.pageContentPadding)
+        .navigationTitle("Sources")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                GlassEffectContainer(spacing: 8) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "magnifyingglass")
+                            .foregroundStyle(.secondary)
+                        TextField("Filter sources", text: $filter)
+                            .textFieldStyle(.plain)
+                            .frame(width: 220)
+                        if !filter.isEmpty {
+                            Button {
+                                filter = ""
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 10)
+                    .frame(height: 30)
+                    .glassEffect(.regular, in: Capsule())
+
+                    Button("Add Source") {
+                        showAddSheet = true
+                    }
+                    .buttonStyle(.glassProminent)
+                    .buttonBorderShape(.capsule)
+                    .disabled(isDeletingSource)
+                }
+            }
+        }
         .onAppear {
             guard !isPreview else { return }
             viewModel.load()
@@ -115,8 +155,11 @@ struct SourcesListView: View {
             if viewModel.sources.isEmpty {
                 Text("No sources configured")
                     .foregroundStyle(.secondary)
+            } else if filteredSources.isEmpty {
+                Text("No sources match current search")
+                    .foregroundStyle(.secondary)
             }
-            ForEach(viewModel.sources) { source in
+            ForEach(filteredSources) { source in
                 configuredSourceRow(source)
             }
         }
@@ -181,7 +224,8 @@ struct SourcesListView: View {
             Button("Connect") {
                 appState.connectWebSource(provider)
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(.glass)
+            .buttonBorderShape(.capsule)
             .controlSize(.small)
 
             Button(status.isSyncing ? "Syncing..." : "Sync now") {
@@ -190,7 +234,8 @@ struct SourcesListView: View {
                     await viewModel.reload()
                 }
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(.glass)
+            .buttonBorderShape(.capsule)
             .controlSize(.small)
             .disabled(status.isSyncing)
         }
@@ -202,7 +247,8 @@ struct SourcesListView: View {
             Button("Connect") {
                 appState.connectWebSource(provider)
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(.glass)
+            .buttonBorderShape(.capsule)
             .controlSize(.small)
             .disabled(isDeletingSource)
 
@@ -212,7 +258,8 @@ struct SourcesListView: View {
                     await viewModel.reload()
                 }
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(.glass)
+            .buttonBorderShape(.capsule)
             .controlSize(.small)
             .disabled(isDeletingSource || status.isSyncing)
         }
@@ -226,12 +273,7 @@ struct SourcesListView: View {
                 .scaledToFill()
                 .frame(width: 28, height: 28)
                 .clipShape(Circle())
-                .background(Circle().fill(Color.white))
-                .overlay(
-                    Circle()
-                        .stroke(Color.white.opacity(0.2), lineWidth: 2)
-                )
-                .shadow(color: Color.black.opacity(0.2), radius: 2, x: 0, y: 1)
+                .glassEffect(.regular, in: Circle())
         } else {
             EmptyView()
         }
@@ -264,6 +306,32 @@ struct SourcesListView: View {
             return message
         }
         return nil
+    }
+
+    private func sourceMatches(_ source: SourceDTO) -> Bool {
+        let haystack = [
+            source.name.lowercased(),
+            source.type.lowercased(),
+            source.id.lowercased()
+        ]
+        let localMatches = localTokens.allSatisfy { token in
+            haystack.contains { $0.contains(token) }
+        }
+        let globalMatches = globalTokens.allSatisfy { token in
+            haystack.contains { $0.contains(token) }
+        }
+        return localMatches && globalMatches
+    }
+
+    private func providerMatches(_ provider: WebSyncProvider) -> Bool {
+        let haystack = [provider.displayName.lowercased(), provider.sourceType.lowercased()]
+        let localMatches = localTokens.allSatisfy { token in
+            haystack.contains { $0.contains(token) }
+        }
+        let globalMatches = globalTokens.allSatisfy { token in
+            haystack.contains { $0.contains(token) }
+        }
+        return localMatches && globalMatches
     }
 }
 

@@ -74,7 +74,7 @@ struct AddSourceSheet: View {
                !tip.isEmpty {
                 HStack(alignment: .top, spacing: 8) {
                     Image(systemName: "info.circle")
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(.secondary)
                         .font(.body)
                     
                     VStack(alignment: .leading, spacing: 4) {
@@ -86,7 +86,7 @@ struct AddSourceSheet: View {
                     }
                 }
                 .padding(12)
-                .background(Color.blue.opacity(0.1))
+                .background(Color.secondary.opacity(0.12))
                 .clipShape(RoundedRectangle(cornerRadius: 8))
             }
             

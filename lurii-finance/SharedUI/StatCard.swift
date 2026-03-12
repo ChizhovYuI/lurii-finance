@@ -21,12 +21,12 @@ struct StatCard: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .padding(16)
+        .padding(DesignTokens.blockPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(DesignTokens.cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .clipShape(RoundedRectangle(cornerRadius: DesignTokens.blockCornerRadius))
         .overlay(
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: DesignTokens.blockCornerRadius)
                 .stroke(DesignTokens.border)
         )
     }

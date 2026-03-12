@@ -18,6 +18,7 @@ struct lurii_financeApp: App {
                 .environmentObject(appState)
                 .onAppear { registerLoginItemIfNeeded() }
         }
+        .windowToolbarStyle(.unifiedCompact(showsTitle: false))
     }
 
     private func registerLoginItemIfNeeded() {

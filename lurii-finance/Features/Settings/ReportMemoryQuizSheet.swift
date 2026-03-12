@@ -39,7 +39,7 @@ struct ReportMemoryQuizSheet: View {
                 .foregroundStyle(.secondary)
 
             ProgressView(value: Double(isReviewStep ? steps.count : stepIndex), total: Double(steps.count))
-                .tint(DesignTokens.accent)
+                .tint(.secondary)
 
             if !isReviewStep {
                 Text("Step \(stepIndex + 1) of \(steps.count)")

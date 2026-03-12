@@ -11,26 +11,6 @@ struct WeeklyReportView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Text("Weekly AI Report")
-                    .font(.title2)
-
-                Spacer()
-
-                Button {
-                    viewModel.silentRefresh()
-                } label: {
-                    Image(systemName: "arrow.clockwise")
-                }
-                .buttonStyle(.bordered)
-
-                Button("Generate") {
-                    viewModel.generate()
-                }
-                .buttonStyle(.bordered)
-                .disabled(appState.generatingCommentary)
-            }
-
             if appState.generatingCommentary {
                 HStack(spacing: 8) {
                     ProgressView()
@@ -42,7 +22,7 @@ struct WeeklyReportView: View {
             }
 
             if !viewModel.hasLoaded {
-                Spacer()
+                ProgressView("Loading report...")
             } else if viewModel.isLoading {
                 ProgressView("Loading report...")
             } else if let errorMessage = viewModel.errorMessage {
@@ -76,10 +56,10 @@ struct WeeklyReportView: View {
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
-                            .padding(12)
+                            .padding(DesignTokens.blockPadding)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .background(DesignTokens.cardBackground)
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .clipShape(RoundedRectangle(cornerRadius: DesignTokens.blockCornerRadius))
                         }
 
                         if let sections = commentary.sections, !sections.isEmpty {
@@ -88,10 +68,10 @@ struct WeeklyReportView: View {
                             }
                         } else {
                             MarkdownBodyText(text: commentary.text)
-                                .padding(16)
+                                .padding(DesignTokens.blockPadding)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .background(DesignTokens.cardBackground)
-                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                                .clipShape(RoundedRectangle(cornerRadius: DesignTokens.blockCornerRadius))
                         }
                     }
                 }
@@ -108,7 +88,22 @@ struct WeeklyReportView: View {
 
             Spacer()
         }
-        .padding(24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .padding(.leading, DesignTokens.pageContentPadding)
+        .padding(.trailing, DesignTokens.pageContentTrailingPadding)
+        .padding(.top, DesignTokens.pageContentPadding)
+        .padding(.bottom, DesignTokens.pageContentPadding)
+        .navigationTitle("Reports")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button("Generate") {
+                    viewModel.generate()
+                }
+                .buttonStyle(.glassProminent)
+                .buttonBorderShape(.capsule)
+                .disabled(appState.generatingCommentary)
+            }
+        }
         .onAppear {
             viewModel.appState = appState
             guard !isPreview else { return }
@@ -143,10 +138,10 @@ private struct SectionCard: View {
 
             MarkdownBodyText(text: section.description)
         }
-        .padding(16)
+        .padding(DesignTokens.blockPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(DesignTokens.cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .clipShape(RoundedRectangle(cornerRadius: DesignTokens.blockCornerRadius))
     }
 }
 

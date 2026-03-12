@@ -12,8 +12,6 @@ struct EarnSummaryView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                header
-
                 if viewModel.isLoading {
                     ProgressView("Loading earn summary...")
                 } else if let errorMessage = viewModel.errorMessage {
@@ -27,7 +25,36 @@ struct EarnSummaryView: View {
                     EmptyStateView(title: "No earn data", message: "Yield-bearing positions will appear here once available.")
                 }
             }
-            .padding(24)
+            .padding(.leading, DesignTokens.pageContentPadding)
+            .padding(.trailing, DesignTokens.pageContentTrailingPadding)
+            .padding(.top, DesignTokens.pageContentPadding)
+            .padding(.bottom, DesignTokens.pageContentPadding)
+        }
+        .navigationTitle("Earn")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                GlassEffectContainer(spacing: 8) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "magnifyingglass")
+                            .foregroundStyle(.secondary)
+                        TextField("Filter asset, source", text: $filter)
+                            .textFieldStyle(.plain)
+                            .frame(width: 220)
+                        if !filter.isEmpty {
+                            Button {
+                                filter = ""
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 10)
+                    .frame(height: 30)
+                    .glassEffect(.regular, in: Capsule())
+                }
+            }
         }
         .onAppear {
             guard !isPreview else { return }
@@ -39,18 +66,6 @@ struct EarnSummaryView: View {
         .onChange(of: appState.selectedSection) { _, newValue in
             if newValue == .earn {
                 viewModel.load()
-            }
-        }
-    }
-
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Earn")
-                .font(.title2)
-            if let date = viewModel.summary?.date, !date.isEmpty {
-                Text("As of \(date)")
-                    .foregroundStyle(.secondary)
-                    .font(.caption)
             }
         }
     }
@@ -73,26 +88,24 @@ struct EarnSummaryView: View {
             let r = Decimal(string: rhs.apy ?? "0") ?? 0
             return l > r
         }
-        let tokens = filter.lowercased()
+        let localTokens = filter.lowercased()
             .split(whereSeparator: { $0.isWhitespace }).map(String.init)
-        let filtered: [EarnPosition] = if tokens.isEmpty {
+        let globalTokens = appState.globalSearchQuery.lowercased()
+            .split(whereSeparator: { $0.isWhitespace }).map(String.init)
+        let filtered: [EarnPosition] = if localTokens.isEmpty && globalTokens.isEmpty {
             sorted
         } else {
             sorted.filter { position in
                 let haystack = [position.asset.lowercased(), position.source.lowercased()]
-                return tokens.allSatisfy { token in haystack.contains { $0.contains(token) } }
+                let localMatches = localTokens.allSatisfy { token in haystack.contains { $0.contains(token) } }
+                let globalMatches = globalTokens.allSatisfy { token in haystack.contains { $0.contains(token) } }
+                return localMatches && globalMatches
             }
         }
 
         return VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 12) {
-                Text("Positions")
-                    .font(.headline)
-                Spacer()
-                TextField("Filter by asset, source", text: $filter)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(maxWidth: 260)
-            }
+            Text("Positions")
+                .font(.headline)
 
             headerRow
 
@@ -105,9 +118,9 @@ struct EarnSummaryView: View {
                 }
             }
         }
-        .padding(16)
+        .padding(DesignTokens.blockPadding)
         .background(DesignTokens.cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .clipShape(RoundedRectangle(cornerRadius: DesignTokens.blockCornerRadius))
     }
 
     private var headerRow: some View {
@@ -119,6 +132,7 @@ struct EarnSummaryView: View {
             headerCell("Value", alignment: .trailing)
             headerCell("APY", alignment: .trailing)
         }
+        .padding(.horizontal, DesignTokens.blockRowHorizontalPadding)
         .font(.caption)
         .foregroundStyle(.secondary)
     }
@@ -137,6 +151,7 @@ struct EarnSummaryView: View {
             let apyText = ValueFormatters.percent(from: position.apy) ?? position.apy ?? "—"
             rowCell(apyText, alignment: .trailing)
         }
+        .padding(.horizontal, DesignTokens.blockRowHorizontalPadding)
         .font(.subheadline)
     }
 
@@ -158,12 +173,7 @@ struct EarnSummaryView: View {
                 .scaledToFill()
                 .frame(width: 24, height: 24)
                 .clipShape(Circle())
-                .background(Circle().fill(Color.white))
-                .overlay(
-                    Circle()
-                        .stroke(Color.white.opacity(0.2), lineWidth: 2)
-                )
-                .shadow(color: Color.black.opacity(0.2), radius: 2, x: 0, y: 1)
+                .glassEffect(.regular, in: Circle())
                 .frame(maxWidth: .infinity, alignment: .leading)
         } else {
             rowCell(source)

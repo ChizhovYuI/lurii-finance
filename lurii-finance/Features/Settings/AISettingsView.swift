@@ -23,9 +23,6 @@ struct AISettingsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                Text("AI Settings")
-                    .font(.title2)
-
                 if viewModel.isLoading {
                     ProgressView("Loading...")
                 } else if let errorMessage = viewModel.errorMessage {
@@ -37,7 +34,11 @@ struct AISettingsView: View {
                 }
             }
         }
-        .padding(24)
+        .padding(.leading, DesignTokens.pageContentPadding)
+        .padding(.trailing, DesignTokens.pageContentTrailingPadding)
+        .padding(.top, DesignTokens.pageContentPadding)
+        .padding(.bottom, DesignTokens.pageContentPadding)
+        .navigationTitle("AI")
         .onAppear {
             guard !isPreview else { return }
             viewModel.load()
@@ -169,9 +170,9 @@ struct AISettingsView: View {
                     }
             }
             .background(DesignTokens.cardBackground)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .clipShape(RoundedRectangle(cornerRadius: DesignTokens.blockCornerRadius))
             .overlay(
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius: DesignTokens.blockCornerRadius)
                     .stroke(DesignTokens.border, lineWidth: 1)
             )
 
@@ -196,11 +197,11 @@ struct AISettingsView: View {
                     .foregroundStyle(reportMemorySaveSucceeded == false ? DesignTokens.error : .secondary)
             }
         }
-        .padding(16)
+        .padding(DesignTokens.blockPadding)
         .background(DesignTokens.cardBackground.opacity(0.55))
-        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .clipShape(RoundedRectangle(cornerRadius: DesignTokens.blockCornerRadius))
         .overlay(
-            RoundedRectangle(cornerRadius: 14)
+            RoundedRectangle(cornerRadius: DesignTokens.blockCornerRadius)
                 .stroke(DesignTokens.border, lineWidth: 1)
         )
     }

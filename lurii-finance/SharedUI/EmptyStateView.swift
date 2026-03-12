@@ -25,7 +25,8 @@ struct EmptyStateView: View {
                 Button(actionTitle) {
                     action()
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.glass)
+                .buttonBorderShape(.capsule)
             }
         }
         .padding(24)
