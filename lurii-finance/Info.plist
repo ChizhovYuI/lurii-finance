@@ -27,5 +27,7 @@
         <key>NSAllowsArbitraryLoads</key>
         <true/>
     </dict>
+    <key>NSQuitAlwaysKeepsWindows</key>
+    <false/>
 </dict>
 </plist>

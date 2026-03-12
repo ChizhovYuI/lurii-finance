@@ -86,6 +86,32 @@ struct APIClient {
         try await request(path: APIEndpoints.cashManual, method: "PUT", body: requestBody)
     }
 
+    func postExtSnapshot(sourceType: String, uid: String, payloadData: Data) async throws {
+        let url = APIEndpoints.url(
+            path: APIEndpoints.extSnapshot,
+            queryItems: [
+                URLQueryItem(name: "source_type", value: sourceType),
+                URLQueryItem(name: "uid", value: uid)
+            ]
+        )
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = payloadData
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+        guard (200...299).contains(httpResponse.statusCode) else {
+            if let error = try? decoder.decode(ErrorMessageResponse.self, from: data) {
+                throw APIError.message(error.error)
+            }
+            throw APIError.httpStatus(httpResponse.statusCode)
+        }
+    }
+
     // MARK: - APY Rules
 
     func getApyRules(sourceName: String) async throws -> [ApyRuleDTO] {

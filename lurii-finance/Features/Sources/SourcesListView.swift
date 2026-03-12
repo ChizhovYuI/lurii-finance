@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct SourcesListView: View {
+    @EnvironmentObject private var appState: AppState
     @StateObject private var viewModel = SourcesViewModel()
     @State private var showAddSheet = false
     @State private var selectedSource: SourceDTO?
@@ -10,6 +11,12 @@ struct SourcesListView: View {
 
     private var isPreview: Bool {
         ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
+    }
+
+    private var missingWebSyncProviders: [WebSyncProvider] {
+        WebSyncProvider.allCases.filter { provider in
+            !viewModel.sources.contains(where: { $0.type.lowercased() == provider.sourceType })
+        }
     }
 
     var body: some View {
@@ -38,54 +45,8 @@ struct SourcesListView: View {
                 EmptyStateView(title: "Sources unavailable", message: errorMessage, actionTitle: "Retry") {
                     viewModel.load()
                 }
-            } else if viewModel.sources.isEmpty {
-                EmptyStateView(title: "No sources configured", message: "Add an exchange or wallet to start.")
             } else {
-                List {
-                    ForEach(viewModel.sources) { source in
-                        HStack {
-                            if let iconName = source.type.sourceIconName() {
-                                Image(iconName)
-                                    .resizable()
-                                    .scaledToFill()
-                                    .frame(width: 28, height: 28)
-                                    .clipShape(Circle())
-                                    .background(Circle().fill(Color.white))
-                                    .overlay(
-                                        Circle()
-                                            .stroke(Color.white.opacity(0.2), lineWidth: 2)
-                                    )
-                                    .shadow(color: Color.black.opacity(0.2), radius: 2, x: 0, y: 1)
-                            }
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(source.name)
-                            }
-                            Spacer()
-                            Toggle("Enabled", isOn: Binding(
-                                get: { source.enabled },
-                                set: { newValue in
-                                    viewModel.toggleSource(source, enabled: newValue)
-                                }
-                            ))
-                            .toggleStyle(.switch)
-                            .labelsHidden()
-                            .disabled(isDeletingSource)
-                            Button(role: .destructive) {
-                                deleteErrorMessage = nil
-                                pendingDeletionSource = source
-                            } label: {
-                                Image(systemName: "trash")
-                            }
-                            .buttonStyle(.borderless)
-                            .disabled(isDeletingSource)
-                        }
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            selectedSource = source
-                        }
-                    }
-                }
-                .frame(minHeight: 300)
+                sourcesList
             }
         }
         .padding(24)
@@ -135,6 +96,147 @@ struct SourcesListView: View {
         }
     }
 
+    private var sourcesList: some View {
+        List {
+            configuredSourcesSection
+            if !missingWebSyncProviders.isEmpty {
+                Section("Web Sync Quick Connect") {
+                    ForEach(missingWebSyncProviders) { provider in
+                        quickConnectProviderRow(provider)
+                    }
+                }
+            }
+        }
+        .frame(minHeight: 300)
+    }
+
+    private var configuredSourcesSection: some View {
+        Section("Configured Sources") {
+            if viewModel.sources.isEmpty {
+                Text("No sources configured")
+                    .foregroundStyle(.secondary)
+            }
+            ForEach(viewModel.sources) { source in
+                configuredSourceRow(source)
+            }
+        }
+    }
+
+    private func configuredSourceRow(_ source: SourceDTO) -> some View {
+        HStack {
+            sourceIcon(source.type)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(source.name)
+                if let provider = WebSyncProvider(sourceType: source.type),
+                   let statusText = providerStatusLine(appState.webSyncStatus(for: provider)) {
+                    Text(statusText)
+                        .font(.caption)
+                        .foregroundStyle(appState.webSyncStatus(for: provider).errorMessage == nil ? Color.secondary : Color.red)
+                }
+            }
+            Spacer()
+            if let provider = WebSyncProvider(sourceType: source.type) {
+                sourceWebSyncActions(provider: provider)
+            }
+            Toggle("Enabled", isOn: Binding(
+                get: { source.enabled },
+                set: { newValue in
+                    viewModel.toggleSource(source, enabled: newValue)
+                }
+            ))
+            .toggleStyle(.switch)
+            .labelsHidden()
+            .disabled(isDeletingSource)
+            Button(role: .destructive) {
+                deleteErrorMessage = nil
+                pendingDeletionSource = source
+            } label: {
+                Image(systemName: "trash")
+            }
+            .buttonStyle(.borderless)
+            .disabled(isDeletingSource)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            selectedSource = source
+        }
+    }
+
+    private func quickConnectProviderRow(_ provider: WebSyncProvider) -> some View {
+        let status = appState.webSyncStatus(for: provider)
+        return HStack {
+            sourceIcon(provider.sourceType)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(provider.displayName)
+                Text("Source will be auto-created after successful sync.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if let statusText = providerStatusLine(status) {
+                    Text(statusText)
+                        .font(.caption)
+                        .foregroundStyle(status.errorMessage == nil ? Color.secondary : Color.red)
+                }
+            }
+            Spacer()
+            Button("Connect") {
+                appState.connectWebSource(provider)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+
+            Button(status.isSyncing ? "Syncing..." : "Sync now") {
+                Task {
+                    _ = await appState.syncWebSourceNow(provider)
+                    await viewModel.reload()
+                }
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .disabled(status.isSyncing)
+        }
+    }
+
+    private func sourceWebSyncActions(provider: WebSyncProvider) -> some View {
+        let status = appState.webSyncStatus(for: provider)
+        return HStack(spacing: 8) {
+            Button("Connect") {
+                appState.connectWebSource(provider)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .disabled(isDeletingSource)
+
+            Button(status.isSyncing ? "Syncing..." : "Sync now") {
+                Task {
+                    _ = await appState.syncWebSourceNow(provider)
+                    await viewModel.reload()
+                }
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .disabled(isDeletingSource || status.isSyncing)
+        }
+    }
+
+    @ViewBuilder
+    private func sourceIcon(_ sourceType: String) -> some View {
+        if let iconName = sourceType.sourceIconName() {
+            Image(iconName)
+                .resizable()
+                .scaledToFill()
+                .frame(width: 28, height: 28)
+                .clipShape(Circle())
+                .background(Circle().fill(Color.white))
+                .overlay(
+                    Circle()
+                        .stroke(Color.white.opacity(0.2), lineWidth: 2)
+                )
+                .shadow(color: Color.black.opacity(0.2), radius: 2, x: 0, y: 1)
+        } else {
+            EmptyView()
+        }
+    }
+
     private func confirmDelete(_ source: SourceDTO) {
         guard !isDeletingSource else { return }
         isDeletingSource = true
@@ -150,8 +252,22 @@ struct SourcesListView: View {
             isDeletingSource = false
         }
     }
+
+    private func providerStatusLine(_ status: WebSyncStatus) -> String? {
+        if status.isSyncing {
+            return status.message ?? "Syncing..."
+        }
+        if let error = status.errorMessage, !error.isEmpty {
+            return error
+        }
+        if let message = status.message, !message.isEmpty {
+            return message
+        }
+        return nil
+    }
 }
 
 #Preview {
     SourcesListView()
+        .environmentObject(AppState())
 }

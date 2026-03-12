@@ -1,8 +1,20 @@
+import AppKit
 import SwiftUI
 import Combine
 
 @MainActor
 final class AppState: ObservableObject {
+    private enum UpdateRefreshMode {
+        case regular
+        case forced
+    }
+
+    private enum UpdateInstallStartResult {
+        case started
+        case alreadyInProgress
+        case failed(String)
+    }
+
     enum DaemonStatus: Equatable {
         case unknown
         case connected(version: String)
@@ -65,11 +77,33 @@ final class AppState: ObservableObject {
     @Published var updateAvailable: Bool = false
     @Published var hideBalance: Bool = false
     @Published var updates: UpdatesResponse?
+    @Published var webSyncStatuses: [String: WebSyncStatus] = [:]
 
     private let eventStreamClient = EventStreamClient()
+    private let webSyncCoordinator = WebSyncCoordinator()
     private var eventStreamConfigured = false
     private var updateCheckTask: Task<Void, Never>?
+    private var appDidBecomeActiveObserver: NSObjectProtocol?
+    private var autoInstallAttemptsByFingerprint: [String: Int] = [:]
+    private var autoInstallInFlightFingerprint: String?
     private static let updateCheckInterval: TimeInterval = 3600
+    private static let autoInstallRetryDelay: Duration = .seconds(4)
+    private static let maxAutoInstallAttemptsPerFingerprint = 2
+
+    init() {
+        for provider in WebSyncProvider.allCases {
+            webSyncStatuses[provider.rawValue] = webSyncCoordinator.status(for: provider)
+        }
+        webSyncCoordinator.onStatusChange = { [weak self] provider, status in
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .milliseconds(10))
+                guard let self else { return }
+                if self.webSyncStatuses[provider.rawValue] != status {
+                    self.webSyncStatuses[provider.rawValue] = status
+                }
+            }
+        }
+    }
 
     var isConnected: Bool {
         if case .connected = daemonStatus {
@@ -90,6 +124,7 @@ final class AppState: ObservableObject {
         daemonStatus = .connected(version: health.version)
         collecting = health.collecting
         startUpdateCheckLoop()
+        Task { await runWebSyncDailyIfNeeded() }
     }
 
     func updateCollectStatus(_ status: CollectStatus) {
@@ -99,8 +134,21 @@ final class AppState: ObservableObject {
     func startEventStream() {
         guard !eventStreamConfigured else { return }
         eventStreamConfigured = true
+        if appDidBecomeActiveObserver == nil {
+            appDidBecomeActiveObserver = NotificationCenter.default.addObserver(
+                forName: NSApplication.didBecomeActiveNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                Task { @MainActor in
+                    await self?.runWebSyncDailyIfNeeded()
+                }
+            }
+        }
         eventStreamClient.onMessage = { [weak self] message in
-            self?.handleEventMessage(message)
+            Task { @MainActor [weak self] in
+                self?.handleEventMessage(message)
+            }
         }
         eventStreamClient.onDisconnect = { [weak self] in
             Task { @MainActor in
@@ -115,6 +163,7 @@ final class AppState: ObservableObject {
                 await self?.syncCollectStatus()
                 await self?.syncCommentaryStatus()
                 await self?.syncUpdateStatus()
+                await self?.runWebSyncDailyIfNeeded()
             }
         }
         eventStreamClient.connect()
@@ -125,6 +174,10 @@ final class AppState: ObservableObject {
         eventStreamConfigured = false
         updateCheckTask?.cancel()
         updateCheckTask = nil
+        if let appDidBecomeActiveObserver {
+            NotificationCenter.default.removeObserver(appDidBecomeActiveObserver)
+            self.appDidBecomeActiveObserver = nil
+        }
     }
 
     private func syncCollectStatus() async {
@@ -140,15 +193,29 @@ final class AppState: ObservableObject {
     }
 
     func checkForUpdates() async {
-        do {
-            let response = try await APIClient.shared.getUpdates()
-            applyUpdatesResponse(response)
-        } catch {
-            // Non-critical — silently ignore
+        await refreshUpdates(mode: .regular)
+    }
+
+    func forceCheckUpdates() async {
+        await refreshUpdates(mode: .forced)
+    }
+
+    func installUpdatesManually() async {
+        beginLocalInstallState(message: "Starting update...")
+        let result = await startInstallRequest()
+        switch result {
+        case .started, .alreadyInProgress:
+            return
+        case let .failed(message):
+            applyInstallFailure(message: message)
         }
     }
 
     func syncUpdateStatus() async {
+        await refreshUpdates(mode: .regular)
+    }
+
+    private func refreshUpdates(mode: UpdateRefreshMode) async {
         do {
             let status = try await APIClient.shared.getUpdateStatus()
             applyUpdateStatus(status)
@@ -159,23 +226,78 @@ final class AppState: ObservableObject {
             return
         }
 
+        let response: UpdatesResponse?
         do {
-            let response = try await APIClient.shared.getUpdates()
-            applyUpdatesResponse(response)
+            switch mode {
+            case .regular:
+                response = try await APIClient.shared.getUpdates()
+            case .forced:
+                response = try await APIClient.shared.forceCheckUpdates()
+            }
         } catch {
-            // Non-critical — silently ignore
+            // Fall back to regular check if forced refresh fails.
+            if mode == .forced {
+                response = try? await APIClient.shared.getUpdates()
+            } else {
+                response = nil
+            }
         }
+
+        guard let response else { return }
+        applyUpdatesResponse(response)
+        await autoInstallIfNeeded(for: response)
     }
 
     private func startUpdateCheckLoop() {
         guard updateCheckTask == nil else { return }
         updateCheckTask = Task {
             await syncUpdateStatus()
+            await runWebSyncDailyIfNeeded()
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(Self.updateCheckInterval))
                 guard !Task.isCancelled else { break }
                 await syncUpdateStatus()
+                await runWebSyncDailyIfNeeded()
             }
+        }
+    }
+
+    func webSyncStatus(for provider: WebSyncProvider) -> WebSyncStatus {
+        webSyncStatuses[provider.rawValue] ?? .idle
+    }
+
+    func connectWebSource(_ provider: WebSyncProvider) {
+        Task { @MainActor in
+            await Task.yield()
+            await webSyncCoordinator.connect(provider: provider)
+        }
+    }
+
+    @discardableResult
+    func syncWebSourceNow(_ provider: WebSyncProvider) async -> Bool {
+        await Task.yield()
+        return await webSyncCoordinator.syncNow(provider: provider)
+    }
+
+    private func runWebSyncDailyIfNeeded() async {
+        guard isConnected else { return }
+        guard let sources = try? await APIClient.shared.getSources() else { return }
+        await webSyncCoordinator.runDailySyncIfNeeded(sources: sources)
+    }
+
+    private func syncEnabledWebSourcesAfterCollect() async {
+        guard isConnected else { return }
+        guard let sources = try? await APIClient.shared.getSources() else { return }
+
+        let enabledProviders = Set(
+            sources
+                .filter(\.enabled)
+                .compactMap { WebSyncProvider(sourceType: $0.type) }
+        )
+        guard !enabledProviders.isEmpty else { return }
+
+        for provider in enabledProviders {
+            _ = await webSyncCoordinator.syncNow(provider: provider)
         }
     }
 
@@ -234,6 +356,9 @@ final class AppState: ObservableObject {
                 }
             }
             NotificationCenter.default.post(name: .collectionCompleted, object: nil)
+            Task { @MainActor [weak self] in
+                await self?.syncEnabledWebSourcesAfterCollect()
+            }
         case "collection_failed":
             let error = payload["error"] as? String
             Task { @MainActor in
@@ -351,11 +476,7 @@ final class AppState: ObservableObject {
 
     func applyUpdatesResponse(_ response: UpdatesResponse) {
         updates = response
-        let appNeedsUpdate = if let appVersion = runningAppVersion, let latest = response.app.latest {
-            latest != appVersion
-        } else {
-            false
-        }
+        let appNeedsUpdate = appNeedsUpdate(for: response)
         if updateStatus == "error", !updateInstalling, !restartNeeded(for: response) {
             updateStatus = "idle"
             updateProgress = 0
@@ -405,6 +526,125 @@ final class AppState: ObservableObject {
             return false
         }
         return installed != current
+    }
+
+    private func appNeedsUpdate(for response: UpdatesResponse) -> Bool {
+        guard let appVersion = runningAppVersion, let latest = response.app.latest else { return false }
+        return latest != appVersion
+    }
+
+    private func hasAnyInstallableUpdate(_ response: UpdatesResponse) -> Bool {
+        response.pfm.updateAvailable || appNeedsUpdate(for: response)
+    }
+
+    private func updateFingerprint(for response: UpdatesResponse) -> String? {
+        let pfmPart = if response.pfm.updateAvailable {
+            response.pfm.latest ?? "unknown"
+        } else {
+            "-"
+        }
+        let appPart = if appNeedsUpdate(for: response) {
+            response.app.latest ?? "unknown"
+        } else {
+            "-"
+        }
+        if pfmPart == "-", appPart == "-" {
+            return nil
+        }
+        return "pfm:\(pfmPart)|app:\(appPart)"
+    }
+
+    private func shouldAutoInstall(for response: UpdatesResponse) -> Bool {
+        hasAnyInstallableUpdate(response) &&
+            !updateInstalling &&
+            updateStatus != "installed" &&
+            !restartNeeded(for: response)
+    }
+
+    private func autoInstallIfNeeded(for response: UpdatesResponse) async {
+        guard shouldAutoInstall(for: response) else { return }
+        guard let fingerprint = updateFingerprint(for: response) else { return }
+        guard autoInstallInFlightFingerprint != fingerprint else { return }
+
+        let attemptsSoFar = autoInstallAttemptsByFingerprint[fingerprint, default: 0]
+        guard attemptsSoFar < Self.maxAutoInstallAttemptsPerFingerprint else { return }
+
+        beginLocalInstallState(message: "Installing updates...")
+        autoInstallInFlightFingerprint = fingerprint
+        defer {
+            if autoInstallInFlightFingerprint == fingerprint {
+                autoInstallInFlightFingerprint = nil
+            }
+        }
+
+        var nextAttempt = attemptsSoFar + 1
+        while nextAttempt <= Self.maxAutoInstallAttemptsPerFingerprint {
+            autoInstallAttemptsByFingerprint[fingerprint] = nextAttempt
+            let result = await startInstallRequest()
+            switch result {
+            case .started, .alreadyInProgress:
+                return
+            case let .failed(message):
+                if nextAttempt < Self.maxAutoInstallAttemptsPerFingerprint {
+                    try? await Task.sleep(for: Self.autoInstallRetryDelay)
+                    guard !Task.isCancelled else { return }
+                    nextAttempt += 1
+                    continue
+                }
+                applyInstallFailure(message: message)
+                return
+            }
+        }
+    }
+
+    private func beginLocalInstallState(message: String) {
+        updateStatus = "installing"
+        updateInstalling = true
+        updateProgress = 0
+        updateMessage = message
+    }
+
+    private func startInstallRequest() async -> UpdateInstallStartResult {
+        do {
+            try await APIClient.shared.installUpdate(target: "all")
+            return .started
+        } catch {
+            if isInstallAlreadyInProgressError(error) {
+                updateStatus = "installing"
+                updateInstalling = true
+                updateMessage = "Installing updates..."
+                return .alreadyInProgress
+            }
+            return .failed(userMessage(forInstallError: error))
+        }
+    }
+
+    private func isInstallAlreadyInProgressError(_ error: Error) -> Bool {
+        if case APIError.httpStatus(409) = error {
+            return true
+        }
+        if case let APIError.message(message) = error {
+            return message.localizedCaseInsensitiveContains("already in progress")
+        }
+        return false
+    }
+
+    private func userMessage(forInstallError error: Error) -> String {
+        switch error {
+        case let APIError.message(message):
+            return message
+        case let APIError.httpStatus(code):
+            return "Update failed with status \(code)."
+        default:
+            return error.localizedDescription
+        }
+    }
+
+    private func applyInstallFailure(message: String) {
+        updateStatus = "error"
+        updateInstalling = false
+        updateProgress = 0
+        updateMessage = message
     }
 
     private func applyCommentaryStatus(_ status: CommentaryStatus) {

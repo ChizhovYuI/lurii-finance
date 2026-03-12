@@ -232,23 +232,13 @@ private struct AboutView: View {
         isCheckingUpdates = true
         Task {
             defer { isCheckingUpdates = false }
-            do {
-                let response = try await APIClient.shared.forceCheckUpdates()
-                appState.applyUpdatesResponse(response)
-            } catch {
-                // Fall back to regular check
-                await appState.checkForUpdates()
-            }
+            await appState.forceCheckUpdates()
         }
     }
 
     private func installUpdates() {
         Task {
-            do {
-                try await APIClient.shared.installUpdate(target: "all")
-            } catch {
-                // Silently ignore — upgrade runs in background on the server
-            }
+            await appState.installUpdatesManually()
         }
     }
 

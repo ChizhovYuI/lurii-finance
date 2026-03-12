@@ -53,10 +53,14 @@ final class EventStreamClient: NSObject {
             case .success(let message):
                 switch message {
                 case .string(let text):
-                    self.onMessage?(text)
+                    DispatchQueue.main.async { [weak self] in
+                        self?.onMessage?(text)
+                    }
                 case .data(let data):
                     if let text = String(data: data, encoding: .utf8) {
-                        self.onMessage?(text)
+                        DispatchQueue.main.async { [weak self] in
+                            self?.onMessage?(text)
+                        }
                     }
                 @unknown default:
                     break
@@ -67,7 +71,9 @@ final class EventStreamClient: NSObject {
             case .failure:
                 self.isConnected = false
                 self.task = nil
-                self.onDisconnect?()
+                DispatchQueue.main.async { [weak self] in
+                    self?.onDisconnect?()
+                }
                 self.scheduleReconnect()
             }
         }

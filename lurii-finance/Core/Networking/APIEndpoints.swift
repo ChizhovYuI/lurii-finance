@@ -1,7 +1,7 @@
 import Foundation
 
 enum APIEndpoints {
-    static let baseURL = URL(string: "http://localhost:19274")!
+    static let baseURL = URL(string: "http://127.0.0.1:19274")!
 
     static func url(path: String, queryItems: [URLQueryItem] = []) -> URL {
         var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)
@@ -24,6 +24,7 @@ enum APIEndpoints {
     static func sourceDetail(_ name: String) -> String { "/api/v1/sources/\(name)" }
     static func sourceApyRules(_ name: String) -> String { "/api/v1/sources/\(name)/apy-rules" }
     static func sourceApyRule(_ name: String, ruleId: String) -> String { "/api/v1/sources/\(name)/apy-rules/\(ruleId)" }
+    static let extSnapshot = "/api/v1/ext/snapshot"
     static let cashManual = "/api/v1/cash/manual"
 
     static let portfolioSummary = "/api/v1/portfolio/summary"
