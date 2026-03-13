@@ -134,6 +134,14 @@ struct APIClient {
         try await request(path: APIEndpoints.portfolioSummary, method: "GET")
     }
 
+    func getPortfolioNetWorthHistory(days: Int) async throws -> NetWorthHistoryResponse {
+        let url = APIEndpoints.url(
+            path: APIEndpoints.portfolioNetWorthHistory,
+            queryItems: [URLQueryItem(name: "days", value: String(days))]
+        )
+        return try await request(url: url, method: "GET")
+    }
+
     func getHoldings() async throws -> HoldingsResponse {
         try await request(path: APIEndpoints.portfolioHoldings, method: "GET")
     }
@@ -147,12 +155,24 @@ struct APIClient {
         try await request(path: APIEndpoints.allocation, method: "GET")
     }
 
+    func getSourceMovers() async throws -> SourceMoversResponse {
+        try await request(path: APIEndpoints.sourceMovers, method: "GET")
+    }
+
     func getExposure() async throws -> ExposureResponse {
         try await request(path: APIEndpoints.exposure, method: "GET")
     }
 
     func getEarnSummary() async throws -> EarnSummaryResponse {
         try await request(path: APIEndpoints.earnSummary, method: "GET")
+    }
+
+    func getEarnHistory(days: Int) async throws -> EarnHistoryResponse {
+        let url = APIEndpoints.url(
+            path: APIEndpoints.earnHistory,
+            queryItems: [URLQueryItem(name: "days", value: String(days))]
+        )
+        return try await request(url: url, method: "GET")
     }
 
     func getAICommentary() async throws -> AICommentary {

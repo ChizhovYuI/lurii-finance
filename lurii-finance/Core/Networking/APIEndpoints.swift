@@ -28,11 +28,14 @@ enum APIEndpoints {
     static let cashManual = "/api/v1/cash/manual"
 
     static let portfolioSummary = "/api/v1/portfolio/summary"
+    static let portfolioNetWorthHistory = "/api/v1/portfolio/net-worth-history"
     static let portfolioHoldings = "/api/v1/portfolio/holdings"
     static let pnl = "/api/v1/analytics/pnl"
     static let allocation = "/api/v1/analytics/allocation"
+    static let sourceMovers = "/api/v1/analytics/source-movers"
     static let exposure = "/api/v1/analytics/exposure"
     static let earnSummary = "/api/v1/earn/summary"
+    static let earnHistory = "/api/v1/earn/history"
 
     static let aiCommentary = "/api/v1/ai/commentary"
     static let aiCommentaryStatus = "/api/v1/ai/commentary/status"

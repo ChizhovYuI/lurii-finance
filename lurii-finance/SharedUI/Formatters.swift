@@ -68,17 +68,7 @@ enum ValueFormatters {
 
     private static func formattedWithBounds(decimal: Decimal, formatter: NumberFormatter, scale: Int) -> String? {
         let rounded = decimalRounded(decimal, scale: scale, mode: .plain)
-        guard let formatted = formatter.string(from: rounded as NSDecimalNumber) else {
-            return nil
-        }
-
-        if rounded > decimal {
-            return "< \(formatted)"
-        }
-        if rounded < decimal {
-            return "> \(formatted)"
-        }
-        return formatted
+        return formatter.string(from: rounded as NSDecimalNumber)
     }
 
     private static func decimalRounded(_ value: Decimal, scale: Int, mode: NSDecimalNumber.RoundingMode) -> Decimal {

@@ -128,6 +128,19 @@ struct PortfolioSummary: Codable {
     let warnings: [String]?
 }
 
+struct NetWorthHistoryPoint: Codable, Identifiable {
+    var id: String { date }
+    let date: String
+    let usdValue: String
+}
+
+struct NetWorthHistoryResponse: Codable {
+    let startDate: String
+    let endDate: String
+    let currency: String
+    let points: [NetWorthHistoryPoint]
+}
+
 struct AllocationRow: Codable, Identifiable {
     var id: String { "\(asset)-\(sources.joined(separator: ","))" }
     let asset: String
@@ -268,6 +281,22 @@ struct AllocationResponse: Codable {
     let bySource: [[String: String]]
     let byCategory: [[String: String]]
     let riskMetrics: RiskMetrics?
+    let warnings: [String]?
+}
+
+struct SourceMoverRow: Codable, Identifiable {
+    var id: String { source }
+    let source: String
+    let absoluteChange: String
+    let currentUsdValue: String
+    let previousUsdValue: String
+}
+
+struct SourceMoversResponse: Codable {
+    let date: String
+    let previousDate: String?
+    let gainers: [SourceMoverRow]
+    let reducers: [SourceMoverRow]
 }
 
 struct RiskMetrics: Codable {
@@ -295,6 +324,19 @@ struct EarnSummaryResponse: Codable {
     let totalUsdValue: String?
     let weightedAvgApy: String?
     let positions: [EarnPosition]
+}
+
+struct EarnHistoryPoint: Codable, Identifiable {
+    var id: String { date }
+    let date: String
+    let totalUsdValue: String
+    let weightedAvgApy: String
+}
+
+struct EarnHistoryResponse: Codable {
+    let startDate: String
+    let endDate: String
+    let points: [EarnHistoryPoint]
 }
 
 struct EarnPosition: Codable, Identifiable {
