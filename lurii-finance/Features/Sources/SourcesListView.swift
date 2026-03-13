@@ -9,6 +9,9 @@ struct SourcesListView: View {
     @State private var isDeletingSource = false
     @State private var deleteErrorMessage: String?
     @State private var filter = ""
+    @Namespace private var sourcesNamespace
+
+    private let controlSize: CGFloat = 24
 
     private var isPreview: Bool {
         ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
@@ -59,35 +62,18 @@ struct SourcesListView: View {
         .padding(.bottom, DesignTokens.pageContentPadding)
         .navigationTitle("Sources")
         .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                GlassEffectContainer(spacing: 8) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "magnifyingglass")
-                            .foregroundStyle(.secondary)
-                        TextField("Filter sources", text: $filter)
-                            .textFieldStyle(.plain)
-                            .frame(width: 220)
-                        if !filter.isEmpty {
-                            Button {
-                                filter = ""
-                            } label: {
-                                Image(systemName: "xmark.circle.fill")
-                                    .foregroundStyle(.secondary)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                    .padding(.horizontal, 10)
-                    .frame(height: 30)
-                    .glassEffect(.regular, in: Capsule())
-
-                    Button("Add Source") {
-                        showAddSheet = true
-                    }
-                    .buttonStyle(.glassProminent)
-                    .buttonBorderShape(.capsule)
-                    .disabled(isDeletingSource)
+            ToolbarItem(placement: .automatic) {
+                searchField
+                    .frame(width: 280)
+            }
+            ToolbarItem(placement: .automatic) {
+                Button("Add Source") {
+                    showAddSheet = true
                 }
+                .foregroundColor(Color.secondary)
+                .buttonStyle(.glassProminent)
+                .buttonBorderShape(.capsule)
+                .disabled(isDeletingSource)
             }
         }
         .onAppear {
@@ -134,6 +120,31 @@ struct SourcesListView: View {
                 """
             )
         }
+    }
+
+    private var searchField: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
+
+            TextField("Search", text: $filter)
+                .textFieldStyle(.plain)
+                .font(.subheadline)
+
+            if !filter.isEmpty {
+                Button {
+                    filter = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 12)
+        .frame(height: controlSize)
+        .glassEffect(.regular, in: Capsule())
+        .glassEffectID("sources-search", in: sourcesNamespace)
     }
 
     private var sourcesList: some View {

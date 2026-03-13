@@ -95,10 +95,11 @@ struct WeeklyReportView: View {
         .padding(.bottom, DesignTokens.pageContentPadding)
         .navigationTitle("Reports")
         .toolbar {
-            ToolbarItem(placement: .primaryAction) {
+            ToolbarItem(placement: .automatic) {
                 Button("Generate") {
                     viewModel.generate()
                 }
+                .foregroundStyle(.secondary)
                 .buttonStyle(.glassProminent)
                 .buttonBorderShape(.capsule)
                 .disabled(appState.generatingCommentary)

@@ -88,7 +88,6 @@ private final class WindowChromeHostView: NSView {
         window.titlebarAppearsTransparent = true
         window.isOpaque = false
         window.backgroundColor = .clear
-        window.toolbar?.showsBaselineSeparator = false
     }
 
     private func registerObservers() {

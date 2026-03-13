@@ -61,15 +61,15 @@ struct AllocationView: View {
         .padding(.bottom, 8)
         .navigationTitle("Allocation")
         .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                typeTabsBar
-            }
-            ToolbarItem(placement: .secondaryAction) {
-                controlsMenu
-            }
             ToolbarItem(placement: .automatic) {
                 searchField
                     .frame(width: 280)
+            }
+            ToolbarItem(placement: .automatic) {
+                typeTabsBar
+            }
+            ToolbarItem(placement: .automatic) {
+                controlsMenu
             }
         }
         .onAppear {
@@ -117,7 +117,7 @@ struct AllocationView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .padding(.leading, DesignTokens.blockPadding)
         .padding(.trailing, 8)
-        .padding(.top, DesignTokens.blockPadding)
+        .padding(.top, 8)
         .allocationSurfaceBackground(in: RoundedRectangle(cornerRadius: DesignTokens.blockCornerRadius, style: .continuous))
     }
 

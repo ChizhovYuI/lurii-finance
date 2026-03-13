@@ -4,6 +4,9 @@ struct EarnSummaryView: View {
     @EnvironmentObject private var appState: AppState
     @StateObject private var viewModel = EarnSummaryViewModel()
     @State private var filter = ""
+    @Namespace private var earnNamespace
+
+    private let controlSize: CGFloat = 24
 
     private var isPreview: Bool {
         ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
@@ -32,28 +35,9 @@ struct EarnSummaryView: View {
         }
         .navigationTitle("Earn")
         .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                GlassEffectContainer(spacing: 8) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "magnifyingglass")
-                            .foregroundStyle(.secondary)
-                        TextField("Filter asset, source", text: $filter)
-                            .textFieldStyle(.plain)
-                            .frame(width: 220)
-                        if !filter.isEmpty {
-                            Button {
-                                filter = ""
-                            } label: {
-                                Image(systemName: "xmark.circle.fill")
-                                    .foregroundStyle(.secondary)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                    .padding(.horizontal, 10)
-                    .frame(height: 30)
-                    .glassEffect(.regular, in: Capsule())
-                }
+            ToolbarItem(placement: .automatic) {
+                searchField
+                    .frame(width: 280)
             }
         }
         .onAppear {
@@ -68,6 +52,31 @@ struct EarnSummaryView: View {
                 viewModel.load()
             }
         }
+    }
+
+    private var searchField: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
+
+            TextField("Search", text: $filter)
+                .textFieldStyle(.plain)
+                .font(.subheadline)
+
+            if !filter.isEmpty {
+                Button {
+                    filter = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 12)
+        .frame(height: controlSize)
+        .glassEffect(.regular, in: Capsule())
+        .glassEffectID("earn-search", in: earnNamespace)
     }
 
     private func totals(_ summary: EarnSummaryResponse) -> some View {
