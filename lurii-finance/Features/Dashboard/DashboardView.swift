@@ -169,8 +169,10 @@ private struct DashboardPreviewHost: View {
                 )
             ],
             warnings: [
-                "No snapshot data for source: wise",
-                "KBank statement is outdated (2026-02-01, 29 days old)"
+                "Source not synced today: ibkr (latest 2026-02-28)",
+                "Source not synced today: blend usd (latest 2026-02-27)",
+                "Source not synced today: cash (latest 2026-02-26)",
+                "KBank statement is outdated: kbank (2026-02-01, 29 days old)"
             ]
         )
         let viewModel = DashboardViewModel()
@@ -243,7 +245,10 @@ private struct DashboardPreviewHost: View {
                 ]
             ),
             warnings: [
-                "KBank statement is outdated (2026-02-01, 29 days old)"
+                "Source not synced today: ibkr (latest 2026-02-28)",
+                "Source not synced today: blend usd (latest 2026-02-27)",
+                "Source not synced today: cash (latest 2026-02-26)",
+                "KBank statement is outdated: kbank (2026-02-01, 29 days old)"
             ]
         )
         viewModel.sourceMovers = SourceMoversResponse(
@@ -545,43 +550,96 @@ private struct DashboardRiskHealthCard: View {
         allocation?.riskMetrics?.top5Assets?.first?.asset ?? allocation?.byAsset.first?.asset ?? "—"
     }
 
-    private var warningCountText: String {
-        appState.hideBalance ? "Warnings hidden" : "\(warnings.count) warning\(warnings.count == 1 ? "" : "s")"
+    private var hasDataContext: Bool {
+        allocation != nil || !warnings.isEmpty
+    }
+
+    private var unsyncedSourceNames: [String] {
+        var seen = Set<String>()
+        return warnings.compactMap(parseUnsyncedSourceName).filter { sourceName in
+            seen.insert(sourceName).inserted
+        }
+    }
+
+    private var kbankWarningText: String? {
+        warnings.first(where: { $0.hasPrefix("KBank statement is outdated") })
+    }
+
+    private var unsyncedSourcesText: String {
+        guard !unsyncedSourceNames.isEmpty else { return "All enabled sources synced today" }
+        if unsyncedSourceNames.count == 1 {
+            return "Not synced today: \(unsyncedSourceNames[0])"
+        }
+        if unsyncedSourceNames.count == 2 {
+            return "Not synced today: \(unsyncedSourceNames[0]), \(unsyncedSourceNames[1])"
+        }
+        return "Not synced today: \(unsyncedSourceNames[0]), \(unsyncedSourceNames[1]) and \(unsyncedSourceNames.count - 2) more"
     }
 
     private var statusTitle: String {
-        if allocation == nil {
+        if !hasDataContext {
             return "Limited"
         }
-        return hasStaleData ? "Stale" : "Fresh"
+        return hasHealthIssues ? "Stale" : "Fresh"
     }
 
     private var statusImage: String {
-        if allocation == nil {
+        if !hasDataContext {
             return "questionmark.circle.fill"
         }
-        return hasStaleData ? "exclamationmark.triangle.fill" : "checkmark.circle.fill"
+        return hasHealthIssues ? "exclamationmark.triangle.fill" : "checkmark.circle.fill"
     }
 
     private var statusTint: Color {
-        if allocation == nil {
+        if !hasDataContext {
             return .secondary
         }
-        return hasStaleData ? DesignTokens.warning : DesignTokens.success
+        return hasHealthIssues ? DesignTokens.warning : DesignTokens.success
+    }
+
+    private var sourceHealthTint: Color {
+        if !hasDataContext {
+            return .secondary
+        }
+        return unsyncedSourceNames.isEmpty ? DesignTokens.success : DesignTokens.warning
+    }
+
+    private var sourceHealthIcon: String {
+        if !hasDataContext {
+            return "questionmark.circle"
+        }
+        return unsyncedSourceNames.isEmpty ? "clock.badge.checkmark" : "clock.arrow.circlepath"
+    }
+
+    private var kbankWarningDisplayText: String? {
+        guard let kbankWarningText else { return nil }
+        if let details = kbankWarningText.split(separator: ":", maxSplits: 1).last {
+            return "KBank outdated:\(details)"
+        }
+        return kbankWarningText
+    }
+
+    private var hasHealthIssues: Bool {
+        !unsyncedSourceNames.isEmpty || kbankWarningText != nil
+    }
+
+    private func parseUnsyncedSourceName(from warning: String) -> String? {
+        if warning.hasPrefix("Source not synced today: ") {
+            let rawName = String(warning.dropFirst("Source not synced today: ".count))
+            return rawName.components(separatedBy: " (latest ").first?.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        if warning.hasPrefix("No snapshot data for source: ") {
+            return String(warning.dropFirst("No snapshot data for source: ".count))
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return nil
     }
 
     private var sourceHealthText: String {
-        if allocation == nil {
+        if !hasDataContext {
             return "Risk metrics unavailable"
         }
-        return hasStaleData ? "Source data needs refresh" : "Source data looks current"
-    }
-
-    private var hasStaleData: Bool {
-        warnings.contains { warning in
-            let normalized = warning.lowercased()
-            return normalized.contains("outdated") || normalized.contains("no snapshot data")
-        }
+        return unsyncedSourcesText
     }
 
     var body: some View {
@@ -606,16 +664,27 @@ private struct DashboardRiskHealthCard: View {
                     .foregroundStyle(.secondary)
 
                 VStack(alignment: .leading, spacing: 8) {
-                    DashboardStatusBadge(
-                        title: warningCountText,
-                        systemImage: warnings.isEmpty ? "checkmark.circle" : "exclamationmark.bubble",
-                        tint: warnings.isEmpty ? DesignTokens.success : DesignTokens.warning
-                    )
-                    DashboardStatusBadge(
-                        title: sourceHealthText,
-                        systemImage: allocation == nil ? "questionmark.circle" : (hasStaleData ? "clock.arrow.circlepath" : "clock.badge.checkmark"),
-                        tint: allocation == nil ? .secondary : (hasStaleData ? DesignTokens.warning : DesignTokens.success)
-                    )
+                    if unsyncedSourceNames.isEmpty {
+                        DashboardStatusBadge(
+                            title: sourceHealthText,
+                            systemImage: sourceHealthIcon,
+                            tint: sourceHealthTint
+                        )
+                    } else {
+                        DashboardWarningLine(
+                            title: sourceHealthText,
+                            systemImage: sourceHealthIcon,
+                            tint: sourceHealthTint
+                        )
+                    }
+
+                    if let kbankWarningDisplayText {
+                        DashboardWarningLine(
+                            title: kbankWarningDisplayText,
+                            systemImage: "building.columns.circle",
+                            tint: DesignTokens.warning
+                        )
+                    }
                 }
             }
         }
@@ -688,6 +757,20 @@ private struct DashboardUnavailableMessage: View {
             .font(.subheadline)
             .foregroundStyle(.secondary)
             .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct DashboardWarningLine: View {
+    let title: String
+    let systemImage: String
+    let tint: Color
+
+    var body: some View {
+        Label(title, systemImage: systemImage)
+            .font(.caption.weight(.medium))
+            .foregroundStyle(tint)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .multilineTextAlignment(.leading)
     }
 }
 
