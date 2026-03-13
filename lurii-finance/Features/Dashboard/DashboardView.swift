@@ -3,10 +3,6 @@ import SwiftUI
 struct DashboardView: View {
     @EnvironmentObject private var appState: AppState
     @StateObject private var viewModel: DashboardViewModel
-    @State private var isPreparingCashEntry = false
-    @State private var cashEntryErrorMessage: String?
-    @State private var cashManualState: CashManualState?
-    @State private var showCashSheet = false
 
     @MainActor init(viewModel: DashboardViewModel = DashboardViewModel()) {
         _viewModel = StateObject(wrappedValue: viewModel)
@@ -21,11 +17,6 @@ struct DashboardView: View {
             VStack(alignment: .leading, spacing: 16) {
                 CollectionProgressBar(isCollecting: appState.collecting, progress: appState.collectionProgress, message: appState.collectionMessage)
                     .frame(maxWidth: .infinity)
-                if let cashEntryErrorMessage {
-                    Text(cashEntryErrorMessage)
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                }
 
                 if viewModel.isLoading {
                     ProgressView("Loading portfolio...")
@@ -44,38 +35,6 @@ struct DashboardView: View {
             .padding(.bottom, DesignTokens.pageContentPadding)
         }
         .navigationTitle("Dashboard")
-        .toolbar {
-            ToolbarItemGroup(placement: .primaryAction) {
-                Button(isPreparingCashEntry ? "Add Cash..." : "Add Cash") {
-                    prepareCashEntry()
-                }
-                .buttonStyle(.glass)
-                .buttonBorderShape(.capsule)
-                .disabled(isPreparingCashEntry)
-
-                Button("Collect") {
-                    Task {
-                        _ = try? await APIClient.shared.startCollect(source: nil)
-                        if let status = try? await APIClient.shared.getCollectStatus() {
-                            appState.updateCollectStatus(status)
-                        }
-                    }
-                }
-                .buttonStyle(.glassProminent)
-                .buttonBorderShape(.capsule)
-            }
-
-            ToolbarItem(placement: .status) {
-                switch appState.daemonStatus {
-                case .connected(let version):
-                    SyncStatusBar(isConnected: true, version: version)
-                case .disconnected:
-                    SyncStatusBar(isConnected: false, version: nil)
-                case .unknown:
-                    SyncStatusBar(isConnected: false, version: nil)
-                }
-            }
-        }
         .onAppear {
             guard !isPreview else { return }
             viewModel.load()
@@ -85,16 +44,6 @@ struct DashboardView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .snapshotUpdated)) { _ in
             viewModel.load()
-        }
-        .sheet(isPresented: $showCashSheet, onDismiss: { cashManualState = nil }) {
-            if let cashManualState {
-                CashManualSheet(state: cashManualState) {
-                    viewModel.load()
-                }
-            } else {
-                ProgressView("Loading cash editor...")
-                    .padding(24)
-            }
         }
     }
 
@@ -124,42 +73,6 @@ struct DashboardView: View {
             .padding(DesignTokens.blockPadding)
             .background(DesignTokens.cardBackground)
             .clipShape(RoundedRectangle(cornerRadius: DesignTokens.blockCornerRadius))
-        }
-    }
-
-    private func prepareCashEntry() {
-        guard !isPreparingCashEntry else { return }
-        isPreparingCashEntry = true
-        cashEntryErrorMessage = nil
-
-        Task { @MainActor in
-            do {
-                try await ensureCashSourceExists()
-                cashManualState = try await APIClient.shared.getCashManual()
-                showCashSheet = true
-            } catch {
-                cashEntryErrorMessage = "Unable to open Cash editor: \(error.localizedDescription)"
-            }
-            isPreparingCashEntry = false
-        }
-    }
-
-    private func ensureCashSourceExists() async throws {
-        let existingSources = try await APIClient.shared.getSources()
-        if existingSources.contains(where: { $0.type.lowercased() == "cash" }) {
-            return
-        }
-
-        do {
-            try await APIClient.shared.createSource(
-                SourceCreateRequest(
-                    name: "cash",
-                    type: "cash",
-                    credentials: ["fiat_currencies": "USD"]
-                )
-            )
-        } catch {
-            // Another client may have created the source in parallel.
         }
     }
 }
