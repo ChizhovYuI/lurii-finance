@@ -15,8 +15,14 @@ struct DashboardView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                CollectionProgressBar(isCollecting: appState.collecting, progress: appState.collectionProgress, message: appState.collectionMessage)
-                    .frame(maxWidth: .infinity)
+                Text("Dashboard")
+                    .font(.title)
+                    .foregroundStyle(.primary)
+
+                if appState.collecting {
+                    CollectionProgressBar(isCollecting: true, progress: appState.collectionProgress, message: appState.collectionMessage)
+                        .frame(maxWidth: .infinity)
+                }
 
                 if viewModel.isLoading {
                     ProgressView("Loading portfolio...")
@@ -71,7 +77,7 @@ struct DashboardView: View {
                 }
             }
             .padding(DesignTokens.blockPadding)
-            .background(DesignTokens.cardBackground)
+            .background(Color.white)
             .clipShape(RoundedRectangle(cornerRadius: DesignTokens.blockCornerRadius))
         }
     }

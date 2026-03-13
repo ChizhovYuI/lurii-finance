@@ -23,7 +23,7 @@ struct StatCard: View {
         }
         .padding(DesignTokens.blockPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(DesignTokens.cardBackground)
+        .background(Color.white)
         .clipShape(RoundedRectangle(cornerRadius: DesignTokens.blockCornerRadius))
         .overlay(
             RoundedRectangle(cornerRadius: DesignTokens.blockCornerRadius)

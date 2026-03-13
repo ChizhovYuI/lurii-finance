@@ -52,12 +52,15 @@ struct AllocationView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
+            Text("Allocation")
+                .font(.title)
+                .foregroundStyle(.primary)
             contentContainer
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .padding(.leading, DesignTokens.pageContentPadding)
         .padding(.trailing, DesignTokens.pageContentTrailingPadding)
-        .padding(.top, 0)
+        .padding(.top, DesignTokens.pageContentPadding)
         .padding(.bottom, 8)
         .navigationTitle("Allocation")
         .toolbar {

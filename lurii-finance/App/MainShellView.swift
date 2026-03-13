@@ -60,6 +60,15 @@ struct MainShellView: View {
             ToolbarItem(placement: .navigation) {
                 quickActionsToolbar
             }
+            if appState.restartNeeded {
+                ToolbarItem(placement: .navigation) {
+                    Button("Restart to update") {
+                        appState.restartAfterUpdate()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                }
+            }
         }
         .sheet(isPresented: $showCashSheet, onDismiss: { cashManualState = nil }) {
             if let cashManualState {
@@ -104,27 +113,7 @@ struct MainShellView: View {
                     startCollect()
                 }
 
-                if appState.updateInstalling {
-                    ProgressView()
-                        .controlSize(.small)
-                        .frame(width: 14, height: 14)
-                        .padding(.horizontal, 12)
-                        .help(appState.updateMessage.isEmpty ? "Installing updates..." : appState.updateMessage)
-                } else if appState.restartNeeded {
-                    quickActionButton(
-                        systemImage: "arrow.clockwise.circle",
-                        help: "Restart Lurii Finance"
-                    ) {
-                        appState.restartAfterUpdate()
-                    }
-                } else if appState.hasInstallableUpdate {
-                    quickActionButton(
-                        systemImage: "arrow.down.circle",
-                        help: "Update available"
-                    ) {
-                        Task { await appState.installUpdatesManually() }
-                    }
-                }
+            
             }
             .padding(.horizontal, 0)
             .padding(.vertical, 0)

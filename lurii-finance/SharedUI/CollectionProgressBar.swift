@@ -26,7 +26,7 @@ struct CollectionProgressBar: View {
             }
         }
         .padding(DesignTokens.blockPadding)
-        .background(DesignTokens.cardBackground)
+        .background(Color.white)
         .clipShape(RoundedRectangle(cornerRadius: DesignTokens.blockCornerRadius))
     }
 
