@@ -321,12 +321,21 @@ final class WebSyncCoordinator {
             let quantity = doubleValue(row["positionQuantity"])
             let usdValue = doubleValue(row["positionUsdtQuantity"])
             let quotedApr = doubleValue(row["showApr"])
+            let effectiveApr = mexcStoredAprPercent(from: row)
             let yesterdayProfit = doubleValue(row["yesterdayProfitQuantity"])
             return [
                 "symbol": asset,
                 "amount": quantity,
                 "usdValue": usdValue,
                 "quotedAprPercent": quotedApr,
+                "effectiveAprPercent": effectiveApr,
+                "financialType": stringValue(row["financialType"]) ?? "",
+                "positionQuantity": quantity,
+                "positionUsdtQuantity": usdValue,
+                "totalGrantedProfitQuantity": doubleValue(row["totalGrantedProfitQuantity"]),
+                "totalGrantedProfitUsdtQuantity": doubleValue(row["totalGrantedProfitUsdtQuantity"]),
+                "yesterdayProfitQuantity": yesterdayProfit,
+                "yesterdayProfitUsdtQuantity": doubleValue(row["yesterdayProfitUsdtQuantity"]),
                 "yesterdayProfitAmount": yesterdayProfit
             ]
         }
@@ -607,7 +616,7 @@ final class WebSyncCoordinator {
         let weightedAprPercent: Double
         if totalAmount > 0 {
             let weighted = assets.reduce(0.0) { partial, asset in
-                partial + doubleValue(asset["quotedAprPercent"]) * doubleValue(asset["amount"])
+                partial + assetAprPercent(asset) * doubleValue(asset["amount"])
             }
             weightedAprPercent = weighted / totalAmount
         } else {
@@ -957,5 +966,56 @@ final class WebSyncCoordinator {
 
     private func doubleValue(_ value: Any?) -> Double {
         doubleOptionalValue(value) ?? 0
+    }
+
+    private func assetAprPercent(_ asset: [String: Any]) -> Double {
+        if let effectiveApr = doubleOptionalValue(asset["effectiveAprPercent"]), effectiveApr > 0 {
+            return effectiveApr
+        }
+        return doubleValue(asset["quotedAprPercent"])
+    }
+
+    private func mexcStoredAprPercent(from row: [String: Any]) -> Double {
+        let fallbackApr = doubleValue(row["showApr"])
+        guard stringValue(row["financialType"])?.uppercased() == "FIXED" else {
+            return fallbackApr
+        }
+        guard let realizedRate = mexcRealizedAnnualRate(from: row) else {
+            return fallbackApr
+        }
+        return realizedRate * 100
+    }
+
+    private func mexcRealizedAnnualRate(from row: [String: Any]) -> Double? {
+        if let realizedUsdRate = mexcAnnualRate(
+            principal: mexcPrincipalAmount(
+                position: row["positionUsdtQuantity"],
+                grantedProfit: row["totalGrantedProfitUsdtQuantity"]
+            ),
+            dailyProfit: doubleOptionalValue(row["yesterdayProfitUsdtQuantity"])
+        ) {
+            return realizedUsdRate
+        }
+
+        return mexcAnnualRate(
+            principal: mexcPrincipalAmount(
+                position: row["positionQuantity"],
+                grantedProfit: row["totalGrantedProfitQuantity"]
+            ),
+            dailyProfit: doubleOptionalValue(row["yesterdayProfitQuantity"])
+        )
+    }
+
+    private func mexcPrincipalAmount(position: Any?, grantedProfit: Any?) -> Double? {
+        guard let positionAmount = doubleOptionalValue(position), positionAmount > 0 else { return nil }
+        let grantedAmount = max(0, doubleOptionalValue(grantedProfit) ?? 0)
+        let principal = positionAmount - grantedAmount
+        return principal > 0 ? principal : positionAmount
+    }
+
+    private func mexcAnnualRate(principal: Double?, dailyProfit: Double?) -> Double? {
+        guard let principal, principal > 0 else { return nil }
+        guard let dailyProfit, dailyProfit > 0 else { return nil }
+        return (dailyProfit / principal) * 365
     }
 }
