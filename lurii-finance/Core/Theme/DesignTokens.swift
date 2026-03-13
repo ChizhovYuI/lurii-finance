@@ -11,7 +11,7 @@ enum DesignTokens {
     static let pageContentTrailingPadding: CGFloat = 8
     static let blockPadding: CGFloat = 16
     static let blockRowHorizontalPadding: CGFloat = 12
-    static let blockCornerRadius: CGFloat = 16
+    static let blockCornerRadius: CGFloat = 12
 
     static let titleFont = Font.system(size: 22, weight: .semibold)
     static let bodyFont = Font.system(size: 14)

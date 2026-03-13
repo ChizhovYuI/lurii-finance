@@ -29,8 +29,10 @@ struct MainShellView: View {
             }
             .listStyle(.sidebar)
             .frame(minWidth: 200, idealWidth: 220, maxWidth: 260)
-            .background(Color.clear)
             .clipShape(RoundedRectangle(cornerRadius: DesignTokens.blockCornerRadius, style: .continuous))
+            .padding(.top, 8)
+            .background(.white)
+            .tint(.white)
         } detail: {
             Group {
                 switch appState.selectedSection {
@@ -51,7 +53,6 @@ struct MainShellView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .background(Color.clear)
         }
         .navigationSplitViewStyle(.balanced)
         .navigationSplitViewColumnWidth(min: 200, ideal: 220, max: 260)

@@ -107,7 +107,7 @@ struct AllocationView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .safeAreaInset(edge: .bottom) {
-                    Color.clear
+                    Color.white
                         .frame(height: 12)
                         .allowsHitTesting(false)
                 }
@@ -117,8 +117,8 @@ struct AllocationView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .padding(.leading, DesignTokens.blockPadding)
         .padding(.trailing, 8)
-        .padding(.top, 8)
-        .allocationSurfaceBackground(in: RoundedRectangle(cornerRadius: DesignTokens.blockCornerRadius, style: .continuous))
+        .padding(.top, 16)
+        .background(Color.white, in: RoundedRectangle(cornerRadius: DesignTokens.blockCornerRadius, style: .continuous))
     }
 
     private var controlsMenu: some View {
@@ -242,7 +242,7 @@ struct AllocationView: View {
                 }
             }
 
-            Color.clear
+            Color.white
                 .frame(height: 8)
                 .accessibilityHidden(true)
         }
