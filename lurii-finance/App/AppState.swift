@@ -106,13 +106,10 @@ final class AppState: ObservableObject {
             webSyncStatuses[provider.rawValue] = webSyncCoordinator.status(for: provider)
         }
         webSyncCoordinator.onStatusChange = { [weak self] provider, status in
-            Task { @MainActor [weak self] in
-                try? await Task.sleep(for: .milliseconds(10))
-                guard let self else { return }
-                if self.webSyncStatuses[provider.rawValue] != status {
-                    self.webSyncStatuses[provider.rawValue] = status
-                }
-            }
+            guard let self else { return }
+            var nextStatuses = self.webSyncStatuses
+            nextStatuses[provider.rawValue] = status
+            self.webSyncStatuses = nextStatuses
         }
     }
 
@@ -327,7 +324,7 @@ final class AppState: ObservableObject {
         guard !enabledProviders.isEmpty else { return }
 
         for provider in enabledProviders {
-            _ = await webSyncCoordinator.syncNow(provider: provider)
+            _ = await webSyncCoordinator.syncNow(provider: provider, trigger: .automatic)
         }
     }
 

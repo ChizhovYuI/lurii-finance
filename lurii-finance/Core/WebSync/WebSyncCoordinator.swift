@@ -3,18 +3,25 @@ import CryptoKit
 import Foundation
 import WebKit
 
+enum WebSyncTrigger {
+    case manual
+    case automatic
+}
+
 enum WebSyncCoordinatorError: LocalizedError {
     case missingSession(String)
     case invalidResponse(String)
     case unsupportedConfiguration(String)
     case networkFailure(String)
+    case reconnectRequired(String)
 
     var errorDescription: String? {
         switch self {
         case let .missingSession(message),
              let .invalidResponse(message),
              let .unsupportedConfiguration(message),
-             let .networkFailure(message):
+             let .networkFailure(message),
+             let .reconnectRequired(message):
             return message
         }
     }
@@ -33,6 +40,17 @@ private struct WebSyncCapture {
     let userInfoRaw: [String: Any]?
 }
 
+private final class ConnectSession {
+    let id = UUID()
+    let host: WebSyncWebViewHost
+    let authTask: Task<[HTTPCookie], Error>
+
+    init(host: WebSyncWebViewHost, authTask: Task<[HTTPCookie], Error>) {
+        self.host = host
+        self.authTask = authTask
+    }
+}
+
 @MainActor
 final class WebSyncCoordinator {
     var onStatusChange: ((WebSyncProvider, WebSyncStatus) -> Void)?
@@ -41,9 +59,10 @@ final class WebSyncCoordinator {
     private let defaults: UserDefaults
     private var statuses: [WebSyncProvider: WebSyncStatus] = [:]
     private var inFlightProviders: Set<WebSyncProvider> = []
-    private var connectHosts: [WebSyncProvider: WebSyncWebViewHost] = [:]
+    private var connectSessions: [WebSyncProvider: ConnectSession] = [:]
     private let localeDateFormatter: DateFormatter
     private static let dailySyncDefaultsPrefix = "websync.last_success_utc_day."
+    private static let automaticInteractiveAuthPromptDefaultsPrefix = "websync.last_auto_auth_prompt_local_day."
     private static let baseMexcHeaders: [String: String] = [
         "Accept": "*/*",
         "Language": Locale.preferredLanguages.first ?? "en-US",
@@ -56,7 +75,6 @@ final class WebSyncCoordinator {
     private static let emcdRatesEndpoint = "https://rate.emcd.io/statsv2?emcd=1"
     private static let emcdTokenRefreshTimeoutSeconds: TimeInterval = 90
     private static let emcdTokenRefreshPollMilliseconds: UInt64 = 500
-    private static let emcdPreferChangedTokenWindowSeconds: TimeInterval = 8
     private static let emcdMinimumTokenLifetimeSeconds: TimeInterval = 120
     private static let mexcSessionValidationIntervalSeconds: TimeInterval = 2
 
@@ -77,38 +95,82 @@ final class WebSyncCoordinator {
     }
 
     func connect(provider: WebSyncProvider) async {
-        if let existing = connectHosts[provider] {
-            existing.window.makeKeyAndOrderFront(nil)
+        if let existing = connectSessions[provider] {
+            existing.host.window.makeKeyAndOrderFront(nil)
             updateStatus(provider) { status in
                 status.errorMessage = nil
-                status.message = "Connect window is already open."
+                status.message = "Complete login in browser window."
             }
             return
         }
 
         let host = WebSyncWebViewHost(title: "Connect \(provider.displayName)", mode: .visible)
-        host.onWindowWillClose = { [weak self] in
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                self.connectHosts[provider] = nil
-                await self.sessionStore.saveCookies(
-                    from: WKWebsiteDataStore.default().httpCookieStore,
-                    provider: provider
-                )
-            }
-        }
-        connectHosts[provider] = host
-
         await sessionStore.restoreCookies(into: host.cookieStore, provider: provider)
         host.loadForDisplay(url: provider.loginURL)
         updateStatus(provider) { status in
             status.errorMessage = nil
-            status.message = "Login in browser window, then run Sync now."
+            status.message = "Complete login in browser window."
+        }
+
+        let authTask = Task<[HTTPCookie], Error> { @MainActor [weak self] in
+            guard let self else { throw CancellationError() }
+            return try await self.waitForAuthorizedCookies(
+                provider: provider,
+                host: host,
+                timeout: nil,
+                closeMessage: "\(provider.displayName) connect window was closed before login completed.",
+                timeoutMessage: "\(provider.displayName) login did not complete."
+            )
+        }
+        let session = ConnectSession(host: host, authTask: authTask)
+        connectSessions[provider] = session
+
+        host.onWindowWillClose = { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                guard self.connectSessions[provider]?.id == session.id else { return }
+                self.connectSessions[provider] = nil
+                await self.sessionStore.saveCookies(from: host.cookieStore, provider: provider)
+                if !self.status(for: provider).isSyncing {
+                    self.updateStatus(provider) { status in
+                        guard status.errorMessage == nil else { return }
+                        if status.message == "Complete login in browser window." {
+                            status.message = "Connect canceled. Use Connect or Sync now."
+                        }
+                    }
+                }
+            }
+        }
+
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                let cookies = try await authTask.value
+                guard self.connectSessions[provider]?.id == session.id else { return }
+                self.sessionStore.persistCookies(cookies, provider: provider)
+                if !self.status(for: provider).isSyncing {
+                    self.updateStatus(provider) { status in
+                        status.errorMessage = nil
+                        status.message = "Connected. Run Sync now."
+                    }
+                }
+                host.close()
+            } catch is CancellationError {
+                return
+            } catch {
+                guard self.connectSessions[provider]?.id == session.id else { return }
+                guard !host.isClosed else { return }
+                self.updateStatus(provider) { status in
+                    status.errorMessage = error.localizedDescription
+                    status.message = nil
+                }
+                host.close()
+            }
         }
     }
 
     @discardableResult
-    func syncNow(provider: WebSyncProvider) async -> Bool {
+    func syncNow(provider: WebSyncProvider, trigger: WebSyncTrigger = .manual) async -> Bool {
         guard !inFlightProviders.contains(provider) else {
             updateStatus(provider) { status in
                 status.message = "Sync already in progress."
@@ -131,7 +193,7 @@ final class WebSyncCoordinator {
         }
 
         do {
-            let capture = try await collectCapture(provider: provider)
+            let capture = try await collectCapture(provider: provider, trigger: trigger)
             let sources = try await APIClient.shared.getSources()
             try await ensureSource(provider: provider, identity: capture.uid, existingSources: sources)
             let payload = try buildExtensionPayload(provider: provider, capture: capture)
@@ -149,6 +211,20 @@ final class WebSyncCoordinator {
                 status.message = "Synced at \(localeDateFormatter.string(from: now))."
             }
             return true
+        } catch let error as WebSyncCoordinatorError {
+            switch error {
+            case let .reconnectRequired(message):
+                updateStatus(provider) { status in
+                    status.errorMessage = nil
+                    status.message = message
+                }
+            default:
+                updateStatus(provider) { status in
+                    status.errorMessage = error.localizedDescription
+                    status.message = nil
+                }
+            }
+            return false
         } catch {
             let message = error.localizedDescription
             updateStatus(provider) { status in
@@ -167,7 +243,7 @@ final class WebSyncCoordinator {
             }
             guard !enabledProviderSources.isEmpty else { continue }
             guard shouldRunDailySync(provider: provider, now: now) else { continue }
-            _ = await syncNow(provider: provider)
+            _ = await syncNow(provider: provider, trigger: .automatic)
         }
     }
 
@@ -178,27 +254,25 @@ final class WebSyncCoordinator {
         onStatusChange?(provider, next)
     }
 
-    private func collectCapture(provider: WebSyncProvider) async throws -> WebSyncCapture {
+    private func collectCapture(provider: WebSyncProvider, trigger: WebSyncTrigger) async throws -> WebSyncCapture {
         switch provider {
         case .mexc:
-            return try await collectMexcCapture()
-        case .emcd:
-            return try await collectEmcdCapture()
-        }
-    }
-
-    private func collectMexcCapture() async throws -> WebSyncCapture {
-        let resolvedCookies = await resolveCookies(provider: .mexc)
-        if let headers = mexcHeaders(from: resolvedCookies) {
-            do {
-                return try await collectMexcCapture(headers: headers)
-            } catch {
-                // Fall through to WebView refresh flow.
+            let cookies = try await authorizedCookiesForSync(provider: .mexc, trigger: trigger)
+            guard let headers = mexcHeaders(from: cookies) else {
+                throw WebSyncCoordinatorError.missingSession("MEXC session is unavailable. Use Connect or Sync now.")
             }
+            return try await collectMexcCapture(headers: headers)
+        case .emcd:
+            let cookies = try await authorizedCookiesForSync(provider: .emcd, trigger: trigger)
+            guard let token = emcdAccessToken(from: cookies),
+                  tokenHasSufficientRemainingLifetime(
+                      token,
+                      minimumSeconds: Self.emcdMinimumTokenLifetimeSeconds
+                  ) else {
+                throw WebSyncCoordinatorError.missingSession("EMCD session is unavailable. Use Connect or Sync now.")
+            }
+            return try await collectEmcdCapture(token: token)
         }
-
-        let refreshed = try await refreshMexcSession(previousCookies: resolvedCookies)
-        return try await collectMexcCapture(headers: refreshed.headers)
     }
 
     private func collectMexcCapture(headers: [String: String]) async throws -> WebSyncCapture {
@@ -278,10 +352,7 @@ final class WebSyncCoordinator {
         )
     }
 
-    private func collectEmcdCapture() async throws -> WebSyncCapture {
-        let refreshedSession = try await refreshEmcdSession()
-        let token = refreshedSession.token
-
+    private func collectEmcdCapture(token: String) async throws -> WebSyncCapture {
         let jwtPayload = decodeJWTPayload(token: token)
         let email = normalizeIdentity(provider: .emcd, stringValue(jwtPayload["email"]) ?? "")
         guard !email.isEmpty else {
@@ -363,136 +434,150 @@ final class WebSyncCoordinator {
         )
     }
 
-    private func refreshEmcdSession() async throws -> (cookies: [HTTPCookie], token: String) {
-        let persistedCookies = sessionStore.persistedCookies(provider: .emcd)
-        if let persistedToken = emcdAccessToken(from: persistedCookies),
-           tokenHasSufficientRemainingLifetime(
-               persistedToken,
-               minimumSeconds: Self.emcdMinimumTokenLifetimeSeconds
-           ) {
-            return (persistedCookies, persistedToken)
-        }
-
-        let previousToken = emcdAccessToken(from: persistedCookies)
-        let host = WebSyncWebViewHost(title: "EMCD Sync", mode: .visible)
-        defer {
-            Task { @MainActor in
-                host.close()
-            }
-        }
-
-        await sessionStore.restoreCookies(into: host.cookieStore, provider: .emcd)
-        host.loadForDisplay(url: WebSyncProvider.emcd.loginURL)
-        updateStatus(.emcd) { status in
-            status.errorMessage = nil
-            status.message = "Refreshing EMCD token..."
-        }
-
-        let refreshStart = Date()
-        let deadline = Date().addingTimeInterval(Self.emcdTokenRefreshTimeoutSeconds)
-        while Date() < deadline {
-            if Task.isCancelled {
-                throw CancellationError()
-            }
-            if host.isClosed {
-                throw WebSyncCoordinatorError.missingSession(
-                    "EMCD sync window was closed before token refresh completed."
-                )
-            }
-
-            let cookies = await host.cookieStore.allCookies()
-            if let token = emcdAccessToken(from: cookies), !token.isEmpty {
-                let tokenChanged = previousToken == nil || token != previousToken
-                if tokenChanged {
-                    sessionStore.persistCookies(cookies, provider: .emcd)
-                    return (cookies, token)
-                }
-
-                let waited = Date().timeIntervalSince(refreshStart)
-                if waited >= Self.emcdPreferChangedTokenWindowSeconds,
-                   tokenHasSufficientRemainingLifetime(
-                       token,
-                       minimumSeconds: Self.emcdMinimumTokenLifetimeSeconds
-                   ) {
-                    sessionStore.persistCookies(cookies, provider: .emcd)
-                    return (cookies, token)
-                }
-            }
-
-            try? await Task.sleep(nanoseconds: Self.emcdTokenRefreshPollMilliseconds * 1_000_000)
-        }
-
-        throw WebSyncCoordinatorError.missingSession(
-            "EMCD token was not refreshed. Keep the EMCD window open until relogin finishes, then run Sync now again."
-        )
-    }
-
-    private func refreshMexcSession(previousCookies: [HTTPCookie]) async throws -> (cookies: [HTTPCookie], headers: [String: String]) {
-        let previousCookieHeader = cookiesHeader(cookies: previousCookies, domainSuffix: WebSyncProvider.mexc.cookieDomainSuffix)
-        let host = WebSyncWebViewHost(title: "MEXC Sync", mode: .visible)
-        defer {
-            Task { @MainActor in
-                host.close()
-            }
-        }
-
-        await sessionStore.restoreCookies(into: host.cookieStore, provider: .mexc)
-        host.loadForDisplay(url: WebSyncProvider.mexc.loginURL)
-        updateStatus(.mexc) { status in
-            status.errorMessage = nil
-            status.message = "Refreshing MEXC session..."
-        }
-
-        let refreshStart = Date()
-        let deadline = Date().addingTimeInterval(Self.emcdTokenRefreshTimeoutSeconds)
-        var lastValidationAt = Date.distantPast
-        while Date() < deadline {
-            if Task.isCancelled {
-                throw CancellationError()
-            }
-            if host.isClosed {
-                throw WebSyncCoordinatorError.missingSession(
-                    "MEXC sync window was closed before session refresh completed."
-                )
-            }
-
-            let cookies = await host.cookieStore.allCookies()
-            guard let headers = mexcHeaders(from: cookies) else {
-                try? await Task.sleep(nanoseconds: Self.emcdTokenRefreshPollMilliseconds * 1_000_000)
-                continue
-            }
-
-            let newCookieHeader = cookiesHeader(cookies: cookies, domainSuffix: WebSyncProvider.mexc.cookieDomainSuffix)
-            if !previousCookieHeader.isEmpty, newCookieHeader != previousCookieHeader {
-                sessionStore.persistCookies(cookies, provider: .mexc)
-                return (cookies, headers)
-            }
-
-            let waited = Date().timeIntervalSince(refreshStart)
-            let shouldValidate = waited >= Self.emcdPreferChangedTokenWindowSeconds &&
-                Date().timeIntervalSince(lastValidationAt) >= Self.mexcSessionValidationIntervalSeconds
-            if shouldValidate {
-                lastValidationAt = Date()
-                if await mexcSessionLooksAuthorized(headers: headers) {
-                    sessionStore.persistCookies(cookies, provider: .mexc)
-                    return (cookies, headers)
-                }
-            }
-
-            try? await Task.sleep(nanoseconds: Self.emcdTokenRefreshPollMilliseconds * 1_000_000)
-        }
-
-        throw WebSyncCoordinatorError.missingSession(
-            "MEXC session was not refreshed. Keep the MEXC window open until relogin finishes, then run Sync now again."
-        )
-    }
-
     private func mexcHeaders(from cookies: [HTTPCookie]) -> [String: String]? {
         let cookieHeader = cookiesHeader(cookies: cookies, domainSuffix: WebSyncProvider.mexc.cookieDomainSuffix)
         guard !cookieHeader.isEmpty else { return nil }
         var headers = Self.baseMexcHeaders
         headers["Cookie"] = cookieHeader
         return headers
+    }
+
+    private func authorizedCookiesForSync(
+        provider: WebSyncProvider,
+        trigger: WebSyncTrigger
+    ) async throws -> [HTTPCookie] {
+        if let cookies = await authorizedCookiesIfAvailable(provider: provider) {
+            return cookies
+        }
+
+        if let session = connectSessions[provider] {
+            updateStatus(provider) { status in
+                status.errorMessage = nil
+                status.message = "Finish login in browser window to continue sync."
+            }
+            let cookies = try await waitForAuthorizedCookies(
+                provider: provider,
+                host: session.host,
+                timeout: Self.emcdTokenRefreshTimeoutSeconds,
+                closeMessage: "\(provider.displayName) window was closed before login completed.",
+                timeoutMessage: "\(provider.displayName) session was not refreshed. Keep the window open until relogin finishes, then run Sync now again."
+            )
+            sessionStore.persistCookies(cookies, provider: provider)
+            return cookies
+        }
+
+        switch trigger {
+        case .manual:
+            return try await requestInteractiveAuthorization(provider: provider, trigger: trigger)
+        case .automatic:
+            let now = Date()
+            guard shouldAttemptAutomaticInteractiveAuth(provider: provider, now: now) else {
+                throw WebSyncCoordinatorError.reconnectRequired(
+                    "Reconnect required. Use Connect or Sync now. Auto-open paused until tomorrow."
+                )
+            }
+            markAutomaticInteractiveAuthPrompt(provider: provider, at: now)
+            return try await requestInteractiveAuthorization(provider: provider, trigger: trigger)
+        }
+    }
+
+    private func requestInteractiveAuthorization(
+        provider: WebSyncProvider,
+        trigger: WebSyncTrigger
+    ) async throws -> [HTTPCookie] {
+        let host = WebSyncWebViewHost(title: "\(provider.displayName) Sync", mode: .visible)
+        defer {
+            host.close()
+        }
+
+        await sessionStore.restoreCookies(into: host.cookieStore, provider: provider)
+        host.loadForDisplay(url: provider.loginURL)
+        updateStatus(provider) { status in
+            status.errorMessage = nil
+            switch trigger {
+            case .manual:
+                status.message = "Finish login in browser window to continue sync."
+            case .automatic:
+                status.message = "Finish login in browser window to continue automatic sync."
+            }
+        }
+
+        let cookies = try await waitForAuthorizedCookies(
+            provider: provider,
+            host: host,
+            timeout: Self.emcdTokenRefreshTimeoutSeconds,
+            closeMessage: "\(provider.displayName) window was closed before login completed.",
+            timeoutMessage: "\(provider.displayName) session was not refreshed. Keep the window open until relogin finishes, then run Sync now again."
+        )
+        sessionStore.persistCookies(cookies, provider: provider)
+        return cookies
+    }
+
+    private func waitForAuthorizedCookies(
+        provider: WebSyncProvider,
+        host: WebSyncWebViewHost,
+        timeout: TimeInterval?,
+        closeMessage: String,
+        timeoutMessage: String
+    ) async throws -> [HTTPCookie] {
+        let deadline = timeout.map { Date().addingTimeInterval($0) }
+        var lastMexcValidationAt = Date.distantPast
+
+        while true {
+            if Task.isCancelled {
+                throw CancellationError()
+            }
+            if host.isClosed {
+                throw WebSyncCoordinatorError.missingSession(closeMessage)
+            }
+
+            let cookies = await host.cookieStore.allCookies()
+            switch provider {
+            case .mexc:
+                if let headers = mexcHeaders(from: cookies),
+                   Date().timeIntervalSince(lastMexcValidationAt) >= Self.mexcSessionValidationIntervalSeconds {
+                    lastMexcValidationAt = Date()
+                    if await mexcSessionLooksAuthorized(headers: headers) {
+                        return cookies
+                    }
+                }
+            case .emcd:
+                if let token = emcdAccessToken(from: cookies),
+                   !token.isEmpty,
+                   tokenHasSufficientRemainingLifetime(
+                       token,
+                       minimumSeconds: Self.emcdMinimumTokenLifetimeSeconds
+                   ) {
+                    return cookies
+                }
+            }
+
+            if let deadline, Date() >= deadline {
+                throw WebSyncCoordinatorError.missingSession(timeoutMessage)
+            }
+
+            try? await Task.sleep(nanoseconds: Self.emcdTokenRefreshPollMilliseconds * 1_000_000)
+        }
+    }
+
+    private func authorizedCookiesIfAvailable(provider: WebSyncProvider) async -> [HTTPCookie]? {
+        let cookies = await resolveCookies(provider: provider)
+        guard await sessionIsAuthorized(provider: provider, cookies: cookies) else { return nil }
+        return cookies
+    }
+
+    private func sessionIsAuthorized(provider: WebSyncProvider, cookies: [HTTPCookie]) async -> Bool {
+        switch provider {
+        case .mexc:
+            guard let headers = mexcHeaders(from: cookies) else { return false }
+            return await mexcSessionLooksAuthorized(headers: headers)
+        case .emcd:
+            guard let token = emcdAccessToken(from: cookies), !token.isEmpty else { return false }
+            return tokenHasSufficientRemainingLifetime(
+                token,
+                minimumSeconds: Self.emcdMinimumTokenLifetimeSeconds
+            )
+        }
     }
 
     private func mexcSessionLooksAuthorized(headers: [String: String]) async -> Bool {
@@ -721,9 +806,31 @@ final class WebSyncCoordinator {
         defaults.set(utcDayString(for: date), forKey: Self.dailySyncDefaultsPrefix + provider.rawValue)
     }
 
+    private func shouldAttemptAutomaticInteractiveAuth(provider: WebSyncProvider, now: Date) -> Bool {
+        let key = Self.automaticInteractiveAuthPromptDefaultsPrefix + provider.rawValue
+        let currentDay = localDayString(for: now)
+        return defaults.string(forKey: key) != currentDay
+    }
+
+    private func markAutomaticInteractiveAuthPrompt(provider: WebSyncProvider, at date: Date) {
+        defaults.set(
+            localDayString(for: date),
+            forKey: Self.automaticInteractiveAuthPromptDefaultsPrefix + provider.rawValue
+        )
+    }
+
     private func utcDayString(for date: Date) -> String {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? TimeZone.current
+        let components = calendar.dateComponents([.year, .month, .day], from: date)
+        let year = components.year ?? 1970
+        let month = components.month ?? 1
+        let day = components.day ?? 1
+        return String(format: "%04d-%02d-%02d", year, month, day)
+    }
+
+    private func localDayString(for date: Date) -> String {
+        let calendar = Calendar.current
         let components = calendar.dateComponents([.year, .month, .day], from: date)
         let year = components.year ?? 1970
         let month = components.month ?? 1
@@ -741,8 +848,8 @@ final class WebSyncCoordinator {
     }
 
     private func resolveCookies(provider: WebSyncProvider) async -> [HTTPCookie] {
-        if let host = connectHosts[provider] {
-            let liveCookies = await host.cookieStore.allCookies()
+        if let session = connectSessions[provider] {
+            let liveCookies = await session.host.cookieStore.allCookies()
             sessionStore.persistCookies(liveCookies, provider: provider)
             return liveCookies
         }
