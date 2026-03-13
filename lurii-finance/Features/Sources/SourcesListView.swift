@@ -66,12 +66,13 @@ struct SourcesListView: View {
                 searchField
                     .frame(width: 280)
             }
+            ToolbarSpacer(.fixed)
             ToolbarItem(placement: .automatic) {
                 Button("Add Source") {
                     showAddSheet = true
                 }
-                .foregroundColor(Color.secondary)
-                .buttonStyle(.glassProminent)
+                .foregroundStyle(.secondary)
+                .buttonStyle(.glass)
                 .buttonBorderShape(.capsule)
                 .disabled(isDeletingSource)
             }

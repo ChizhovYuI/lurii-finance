@@ -57,17 +57,17 @@ struct MainShellView: View {
         .navigationSplitViewStyle(.balanced)
         .navigationSplitViewColumnWidth(min: 200, ideal: 220, max: 260)
         .toolbar {
-            ToolbarItem(placement: .navigation) {
-                quickActionsToolbar
-            }
             if appState.restartNeeded {
                 ToolbarItem(placement: .navigation) {
-                    Button("Restart to update") {
+                    Button("Restart") {
                         appState.restartAfterUpdate()
                     }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
+                    .buttonStyle(.glassProminent)
+                    .buttonBorderShape(.capsule)
                 }
+            }
+            ToolbarItem(placement: .navigation) {
+                quickActionsToolbar
             }
         }
         .sheet(isPresented: $showCashSheet, onDismiss: { cashManualState = nil }) {

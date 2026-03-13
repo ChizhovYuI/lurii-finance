@@ -100,7 +100,7 @@ struct WeeklyReportView: View {
                     viewModel.generate()
                 }
                 .foregroundStyle(.secondary)
-                .buttonStyle(.glassProminent)
+                .buttonStyle(.glass)
                 .buttonBorderShape(.capsule)
                 .disabled(appState.generatingCommentary)
             }
