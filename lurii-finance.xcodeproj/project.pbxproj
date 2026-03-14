@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXFileReference section */
-		5A03E2592F52EE4B00BC5770 /* lurii-finance.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; name = "lurii-finance.app"; path = "Lurii Finance.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		5A03E2592F52EE4B00BC5770 /* Lurii Finance.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Lurii Finance.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -40,7 +40,7 @@
 		5A03E25A2F52EE4B00BC5770 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				5A03E2592F52EE4B00BC5770 /* lurii-finance.app */,
+				5A03E2592F52EE4B00BC5770 /* Lurii Finance.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -67,7 +67,7 @@
 			packageProductDependencies = (
 			);
 			productName = "lurii-finance";
-			productReference = 5A03E2592F52EE4B00BC5770 /* lurii-finance.app */;
+			productReference = 5A03E2592F52EE4B00BC5770 /* Lurii Finance.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */

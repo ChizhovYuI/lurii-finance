@@ -64,7 +64,7 @@ struct SourcesListView: View {
         .toolbar {
             ToolbarItem(placement: .automatic) {
                 searchField
-                    .frame(width: 280)
+                    .frame(width: 200)
             }
             ToolbarSpacer(.fixed)
             ToolbarItem(placement: .automatic) {

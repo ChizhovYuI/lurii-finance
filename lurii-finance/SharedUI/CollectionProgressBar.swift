@@ -26,8 +26,11 @@ struct CollectionProgressBar: View {
             }
         }
         .padding(DesignTokens.blockPadding)
-        .background(Color.white)
-        .clipShape(RoundedRectangle(cornerRadius: DesignTokens.blockCornerRadius))
+        .glassEffect(in: .rect(cornerRadius: DesignTokens.blockCornerRadius))
+        .overlay(
+            RoundedRectangle(cornerRadius: DesignTokens.blockCornerRadius)
+                .stroke(DesignTokens.border)
+        )
     }
 
     private var statusText: String {

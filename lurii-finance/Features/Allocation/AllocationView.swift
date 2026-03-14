@@ -54,7 +54,6 @@ struct AllocationView: View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Allocation")
                 .font(.title)
-                .foregroundStyle(.primary)
             contentContainer
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -66,7 +65,7 @@ struct AllocationView: View {
         .toolbar {
             ToolbarItem(placement: .automatic) {
                 searchField
-                    .frame(width: 280)
+                    .frame(width: 200)
             }
             ToolbarItem(placement: .automatic) {
                 typeTabsBar
@@ -108,11 +107,7 @@ struct AllocationView: View {
                 ScrollView(.vertical) {
                     allocationTable
                         .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .safeAreaInset(edge: .bottom) {
-                    Color.white
-                        .frame(height: 12)
-                        .allowsHitTesting(false)
+                        .padding(.bottom, 12)
                 }
                 .scrollIndicators(.visible)
             }
@@ -121,7 +116,12 @@ struct AllocationView: View {
         .padding(.leading, DesignTokens.blockPadding)
         .padding(.trailing, 8)
         .padding(.top, 16)
-        .background(Color.white, in: RoundedRectangle(cornerRadius: DesignTokens.blockCornerRadius, style: .continuous))
+        .background(.white, in: .rect(cornerRadius: DesignTokens.blockCornerRadius))
+        .glassEffect(in: .rect(cornerRadius: DesignTokens.blockCornerRadius))
+        .overlay(
+            RoundedRectangle(cornerRadius: DesignTokens.blockCornerRadius)
+                .stroke(DesignTokens.border)
+        )
     }
 
     private var controlsMenu: some View {
@@ -244,10 +244,6 @@ struct AllocationView: View {
                     allocationRow(row)
                 }
             }
-
-            Color.white
-                .frame(height: 8)
-                .accessibilityHidden(true)
         }
     }
 

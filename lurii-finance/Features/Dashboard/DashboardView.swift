@@ -4,11 +4,8 @@ import SwiftUI
 struct DashboardView: View {
     @EnvironmentObject private var appState: AppState
     @StateObject private var viewModel: DashboardViewModel
-    @Namespace private var dashboardNamespace
 
     @AppStorage("dashboard.selectedDateRange") private var selectedDateRangeRaw = DashboardDateRange.oneMonth.rawValue
-
-    private let controlSize: CGFloat = 24
 
     @MainActor init(viewModel: DashboardViewModel = DashboardViewModel()) {
         _viewModel = StateObject(wrappedValue: viewModel)
@@ -115,13 +112,7 @@ struct DashboardView: View {
                     .tag(range.rawValue)
             }
         }
-        .labelsHidden()
         .pickerStyle(.segmented)
-        .tint(.clear)
-        .controlSize(.small)
-        .fixedSize(horizontal: true, vertical: false)
-        .frame(height: controlSize)
-        .glassEffectID("dashboard-date-range", in: dashboardNamespace)
         .accessibilityLabel("Dashboard date range")
     }
 }
@@ -704,8 +695,8 @@ private struct DashboardCardShell<Content: View>: View {
         }
         .padding(DesignTokens.blockPadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(Color.white)
-        .clipShape(RoundedRectangle(cornerRadius: DesignTokens.blockCornerRadius))
+        .background(.white, in: .rect(cornerRadius: DesignTokens.blockCornerRadius))
+        .glassEffect(in: .rect(cornerRadius: DesignTokens.blockCornerRadius))
         .overlay(
             RoundedRectangle(cornerRadius: DesignTokens.blockCornerRadius)
                 .stroke(DesignTokens.border)

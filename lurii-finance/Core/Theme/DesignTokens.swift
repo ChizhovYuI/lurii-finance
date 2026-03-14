@@ -8,7 +8,7 @@ enum DesignTokens {
     static let warning = Color.orange
     static let error = Color.red
     static let pageContentPadding: CGFloat = 24
-    static let pageContentTrailingPadding: CGFloat = 8
+    static let pageContentTrailingPadding: CGFloat = 24
     static let blockPadding: CGFloat = 16
     static let blockRowHorizontalPadding: CGFloat = 12
     static let blockCornerRadius: CGFloat = 12

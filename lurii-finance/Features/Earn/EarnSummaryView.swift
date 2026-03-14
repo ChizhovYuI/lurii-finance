@@ -34,7 +34,7 @@ struct EarnSummaryView: View {
         .toolbar {
             ToolbarItem(placement: .automatic) {
                 searchField
-                    .frame(width: 280)
+                    .frame(width: 200)
             }
         }
         .onAppear {
@@ -161,8 +161,8 @@ struct EarnSummaryView: View {
             }
         }
         .padding(DesignTokens.blockPadding)
-        .background(Color.white)
-        .clipShape(RoundedRectangle(cornerRadius: DesignTokens.blockCornerRadius))
+        .background(.white, in: .rect(cornerRadius: DesignTokens.blockCornerRadius))
+        .glassEffect(in: .rect(cornerRadius: DesignTokens.blockCornerRadius))
         .overlay(
             RoundedRectangle(cornerRadius: DesignTokens.blockCornerRadius)
                 .stroke(DesignTokens.border)
@@ -262,8 +262,8 @@ private struct EarnSummaryMetricCard: View {
         }
         .padding(DesignTokens.blockPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.white)
-        .clipShape(RoundedRectangle(cornerRadius: DesignTokens.blockCornerRadius))
+        .background(.white, in: .rect(cornerRadius: DesignTokens.blockCornerRadius))
+        .glassEffect(in: .rect(cornerRadius: DesignTokens.blockCornerRadius))
         .overlay(
             RoundedRectangle(cornerRadius: DesignTokens.blockCornerRadius)
                 .stroke(DesignTokens.border)

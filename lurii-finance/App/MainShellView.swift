@@ -2,6 +2,7 @@ import SwiftUI
 
 struct MainShellView: View {
     @EnvironmentObject private var appState: AppState
+    @Namespace var namespace
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @State private var isPreparingCashEntry = false
     @State private var cashEntryErrorMessage: String?
@@ -80,6 +81,7 @@ struct MainShellView: View {
                     .padding(24)
             }
         }
+        .background(.background)
         .alert("Unable to open Cash editor", isPresented: cashEntryAlertIsPresented) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -88,7 +90,7 @@ struct MainShellView: View {
     }
 
     private var quickActionsToolbar: some View {
-        GlassEffectContainer(spacing: 0) {
+        GlassEffectContainer(spacing: 8) {
             HStack(spacing: 0) {
                 quickActionButton(
                     systemImage: appState.hideBalance ? "eye.slash" : "eye",
@@ -112,15 +114,7 @@ struct MainShellView: View {
                 ) {
                     startCollect()
                 }
-
-            
             }
-            .padding(.horizontal, 0)
-            .padding(.vertical, 0)
-            .background(.clear)
-            .tint(Color.clear)
-            .clipShape(Capsule())
-            .glassEffect(.regular, in: Capsule())
         }
     }
 
@@ -159,16 +153,9 @@ struct MainShellView: View {
                 }
             }
             .foregroundStyle(.secondary)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 0)
-            .contentShape(Circle())
         }
-        .tint(.clear)
-        .background(.white)
-        .clipShape(Capsule())
-        .glassEffect(.regular, in: Capsule())
         .buttonBorderShape(.capsule)
-        .controlSize(.small)
+        .buttonStyle(.glass)
         .disabled(isDisabled)
         .help(help)
         .accessibilityLabel(Text(help))
