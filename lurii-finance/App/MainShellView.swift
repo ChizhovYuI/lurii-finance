@@ -9,7 +9,7 @@ struct MainShellView: View {
     @State private var cashManualState: CashManualState?
     @State private var showCashSheet = false
     private let primarySections: [AppState.AppSection] = [.dashboard, .allocation, .earn, .reports]
-    private let settingsSections: [AppState.AppSection] = [.sources, .ai, .about, .changelog]
+    private let settingsSections: [AppState.AppSection] = [.sources, .aiProvider, .aiContext, .about, .changelog]
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
@@ -47,8 +47,10 @@ struct MainShellView: View {
                     WeeklyReportView()
                 case .sources:
                     SourcesListView()
-                case .ai:
-                    AISettingsView()
+                case .aiProvider:
+                    AIProviderSettingsView()
+                case .aiContext:
+                    AIContextSettingsView()
                 case .about:
                     AboutSettingsView()
                 case .changelog:

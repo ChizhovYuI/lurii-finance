@@ -3,7 +3,7 @@ import SwiftUI
 struct ReportMemoryQuizSheet: View {
     @Environment(\.dismiss) private var dismiss
 
-    @State private var stepIndex = 0
+    @State private var stepIndex: Int
     @State private var answers = ReportMemoryQuizAnswers()
     @State private var generatedMemory = ""
     @State private var isEditingGeneratedMemory = false
@@ -12,6 +12,11 @@ struct ReportMemoryQuizSheet: View {
 
     private static let maxMemoryLength = 1200
     private let steps = ReportMemoryQuizStep.allSteps
+
+    init(initialStep: Int = 0, onUse: @escaping (String) -> Void) {
+        _stepIndex = State(initialValue: initialStep)
+        self.onUse = onUse
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -87,11 +92,10 @@ struct ReportMemoryQuizSheet: View {
                         .padding(4)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(DesignTokens.cardBackground)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .background(.white.opacity(0.5), in: .rect(cornerRadius: 12))
                 .overlay(
                     RoundedRectangle(cornerRadius: 12)
-                        .stroke(DesignTokens.border, lineWidth: 1)
+                        .stroke(DesignTokens.border)
                 )
             } else {
                 ScrollView {
@@ -101,11 +105,10 @@ struct ReportMemoryQuizSheet: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(12)
                 }
-                .background(DesignTokens.cardBackground)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .background(.white.opacity(0.5), in: .rect(cornerRadius: 12))
                 .overlay(
                     RoundedRectangle(cornerRadius: 12)
-                        .stroke(DesignTokens.border, lineWidth: 1)
+                        .stroke(DesignTokens.border)
                 )
             }
         }
@@ -177,7 +180,8 @@ struct ReportMemoryQuizSheet: View {
                         Text(option).tag(option)
                     }
                 }
-                .pickerStyle(.menu)
+                .labelsHidden()
+                .buttonSizing(.flexible)
 
             case .multi(let options):
                 VStack(alignment: .leading, spacing: 8) {
@@ -204,17 +208,21 @@ struct ReportMemoryQuizSheet: View {
                         .frame(minHeight: 120)
                 }
                 .padding(4)
-                .background(DesignTokens.cardBackground)
-                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .background(.white.opacity(0.5), in: .rect(cornerRadius: 10))
                 .overlay(
                     RoundedRectangle(cornerRadius: 10)
-                        .stroke(DesignTokens.border, lineWidth: 1)
+                        .stroke(DesignTokens.border)
                 )
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
-        .background(DesignTokens.cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .background(.white, in: .rect(cornerRadius: 12))
+        .glassEffect(in: .rect(cornerRadius: 12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(DesignTokens.border)
+        )
     }
 
     private var isReviewStep: Bool {
@@ -886,4 +894,36 @@ private enum ReportMemoryGenerator {
         }
         return String(normalized.prefix(maxLength - 1)).trimmingCharacters(in: .whitespacesAndNewlines) + "…"
     }
+}
+
+#Preview("Step 1: Location") {
+    ReportMemoryQuizSheet(initialStep: 0) { _ in }
+}
+
+#Preview("Step 2: Income") {
+    ReportMemoryQuizSheet(initialStep: 1) { _ in }
+}
+
+#Preview("Step 3: Expenses") {
+    ReportMemoryQuizSheet(initialStep: 2) { _ in }
+}
+
+#Preview("Step 4: Goals") {
+    ReportMemoryQuizSheet(initialStep: 3) { _ in }
+}
+
+#Preview("Step 5: Risk") {
+    ReportMemoryQuizSheet(initialStep: 4) { _ in }
+}
+
+#Preview("Step 6: Experience") {
+    ReportMemoryQuizSheet(initialStep: 5) { _ in }
+}
+
+#Preview("Step 7: Constraints") {
+    ReportMemoryQuizSheet(initialStep: 6) { _ in }
+}
+
+#Preview("Review") {
+    ReportMemoryQuizSheet(initialStep: 7) { _ in }
 }

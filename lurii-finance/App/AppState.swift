@@ -27,7 +27,8 @@ final class AppState: ObservableObject {
         case earn
         case reports
         case sources
-        case ai
+        case aiProvider
+        case aiContext
         case about
         case changelog
 
@@ -45,8 +46,10 @@ final class AppState: ObservableObject {
                 return "Reports"
             case .sources:
                 return "Sources"
-            case .ai:
-                return "AI"
+            case .aiProvider:
+                return "AI Provider"
+            case .aiContext:
+                return "AI Context"
             case .about:
                 return "About"
             case .changelog:
@@ -66,8 +69,10 @@ final class AppState: ObservableObject {
                 return "doc.text"
             case .sources:
                 return "tray.full"
-            case .ai:
+            case .aiProvider:
                 return "sparkles"
+            case .aiContext:
+                return "text.quote"
             case .about:
                 return "info.circle"
             case .changelog:

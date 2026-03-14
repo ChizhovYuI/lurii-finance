@@ -1,20 +1,13 @@
 import SwiftUI
 
-struct AISettingsView: View {
+struct AIProviderSettingsView: View {
     @StateObject private var viewModel = SettingsViewModel()
     @State private var fieldValues: [String: String] = [:]
     @State private var providerStatusMessage: String?
     @State private var validationMessage: String?
     @State private var validationSucceeded: Bool?
-    @State private var reportMemory = ""
-    @State private var reportMemorySaveMessage: String?
-    @State private var reportMemorySaveSucceeded: Bool?
-    @State private var lastLoadedReportMemory = ""
-    @State private var showReportMemoryQuiz = false
     @State private var isCheckingConnection = false
-    @State private var isSavingReportMemory = false
     @FocusState private var focusedField: String?
-    @FocusState private var reportMemoryFocused: Bool
 
     private var isPreview: Bool {
         ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
@@ -23,6 +16,10 @@ struct AISettingsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
+                Text("AI Provider")
+                    .font(.title)
+                    .foregroundStyle(.primary)
+
                 if viewModel.isLoading {
                     ProgressView("Loading...")
                 } else if let errorMessage = viewModel.errorMessage {
@@ -30,15 +27,15 @@ struct AISettingsView: View {
                         viewModel.load()
                     }
                 } else {
-                    formView
+                    providerSettingsSection
                 }
             }
+            .padding(.leading, DesignTokens.pageContentPadding)
+            .padding(.trailing, DesignTokens.pageContentTrailingPadding)
+            .padding(.top, DesignTokens.pageContentPadding)
+            .padding(.bottom, DesignTokens.pageContentPadding)
         }
-        .padding(.leading, DesignTokens.pageContentPadding)
-        .padding(.trailing, DesignTokens.pageContentTrailingPadding)
-        .padding(.top, DesignTokens.pageContentPadding)
-        .padding(.bottom, DesignTokens.pageContentPadding)
-        .navigationTitle("AI")
+        .navigationTitle("AI Provider")
         .onAppear {
             guard !isPreview else { return }
             viewModel.load()
@@ -48,26 +45,9 @@ struct AISettingsView: View {
             clearValidationState()
         }
         .onChange(of: viewModel.isLoading) { _, isLoading in
-            // When loading finishes, refresh the form fields with updated data
             if !isLoading {
                 applyProviderSelection(type: viewModel.selectedProviderType)
-                syncReportMemoryFromViewModel()
             }
-        }
-        .sheet(isPresented: $showReportMemoryQuiz) {
-            ReportMemoryQuizSheet { generatedMemory in
-                reportMemory = generatedMemory
-                reportMemoryFocused = true
-                reportMemorySaveSucceeded = true
-                reportMemorySaveMessage = "Profile draft created. Review it and save when ready."
-            }
-        }
-    }
-
-    private var formView: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            providerSettingsSection
-            reportMemorySection
         }
     }
 
@@ -86,25 +66,25 @@ struct AISettingsView: View {
                     save()
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(!isFormValid || isCheckingConnection || isSavingReportMemory)
+                .disabled(!isFormValid || isCheckingConnection)
 
                 Button(isCheckingConnection ? "Checking..." : "Check Connection") {
                     validateConnection()
                 }
                 .buttonStyle(.bordered)
-                .disabled(!isFormValid || isCheckingConnection || isSavingReportMemory)
+                .disabled(!isFormValid || isCheckingConnection)
 
                 Button("Activate") {
                     activate()
                 }
                 .buttonStyle(.bordered)
-                .disabled(isActiveProvider || isCheckingConnection || isSavingReportMemory)
+                .disabled(isActiveProvider || isCheckingConnection)
 
                 Button("Deactivate") {
                     deactivate()
                 }
                 .buttonStyle(.bordered)
-                .disabled(viewModel.activeProvider == nil || isCheckingConnection || isSavingReportMemory)
+                .disabled(viewModel.activeProvider == nil || isCheckingConnection)
             }
 
             if let providerStatusMessage {
@@ -119,90 +99,13 @@ struct AISettingsView: View {
                     .foregroundStyle(validationSucceeded == true ? .green : .red)
             }
         }
-    }
-
-    private var reportMemorySection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Weekly Report Context")
-                        .font(.headline)
-                    Text("Used in future weekly AI reports. Add stable context like location, income, goals, and risk profile.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                Text("\(reportMemoryCharacterCount)/4000")
-                    .font(.caption)
-                    .foregroundStyle(reportMemoryCharacterCount > 4000 ? DesignTokens.error : .secondary)
-            }
-
-            HStack(spacing: 12) {
-                Button("Create from Quiz") {
-                    showReportMemoryQuiz = true
-                }
-                .buttonStyle(.bordered)
-                .disabled(isSavingReportMemory || isCheckingConnection)
-
-                Button("Edit Manually") {
-                    reportMemoryFocused = true
-                }
-                .buttonStyle(.bordered)
-                .disabled(isSavingReportMemory || isCheckingConnection)
-            }
-
-            ZStack(alignment: .topLeading) {
-                if reportMemory.isEmpty {
-                    Text(exampleReportMemoryPlaceholder)
-                        .font(DesignTokens.bodyFont)
-                        .foregroundStyle(.secondary)
-                        .padding(.top, 10)
-                        .padding(.leading, 6)
-                }
-
-                TextEditor(text: $reportMemory)
-                    .font(DesignTokens.bodyFont)
-                    .focused($reportMemoryFocused)
-                    .frame(minHeight: 220)
-                    .padding(4)
-                    .onChange(of: reportMemory) { _, _ in
-                        clearReportMemoryStatus()
-                    }
-            }
-            .background(DesignTokens.cardBackground)
-            .clipShape(RoundedRectangle(cornerRadius: DesignTokens.blockCornerRadius))
-            .overlay(
-                RoundedRectangle(cornerRadius: DesignTokens.blockCornerRadius)
-                    .stroke(DesignTokens.border, lineWidth: 1)
-            )
-
-            HStack(spacing: 12) {
-                Button(isSavingReportMemory ? "Saving..." : "Save Context") {
-                    saveReportMemory()
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(isSavingReportMemory || isCheckingConnection || reportMemoryCharacterCount > 4000)
-
-                Button("Revert") {
-                    reportMemory = lastLoadedReportMemory
-                    clearReportMemoryStatus()
-                }
-                .buttonStyle(.bordered)
-                .disabled(reportMemory == lastLoadedReportMemory || isSavingReportMemory)
-            }
-
-            if let reportMemorySaveMessage {
-                Text(reportMemorySaveMessage)
-                    .font(.caption)
-                    .foregroundStyle(reportMemorySaveSucceeded == false ? DesignTokens.error : .secondary)
-            }
-        }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(DesignTokens.blockPadding)
-        .background(DesignTokens.cardBackground.opacity(0.55))
-        .clipShape(RoundedRectangle(cornerRadius: DesignTokens.blockCornerRadius))
+        .background(.white, in: .rect(cornerRadius: DesignTokens.blockCornerRadius))
+        .glassEffect(in: .rect(cornerRadius: DesignTokens.blockCornerRadius))
         .overlay(
             RoundedRectangle(cornerRadius: DesignTokens.blockCornerRadius)
-                .stroke(DesignTokens.border, lineWidth: 1)
+                .stroke(DesignTokens.border)
         )
     }
 
@@ -381,26 +284,6 @@ struct AISettingsView: View {
         }
     }
 
-    private func saveReportMemory() {
-        guard !isSavingReportMemory else { return }
-        clearReportMemoryStatus()
-        isSavingReportMemory = true
-
-        Task {
-            let success = await viewModel.saveAIReportMemory(reportMemory.trimmingCharacters(in: .whitespacesAndNewlines))
-            isSavingReportMemory = false
-            if success {
-                lastLoadedReportMemory = viewModel.aiReportMemory
-                reportMemory = viewModel.aiReportMemory
-                reportMemorySaveSucceeded = true
-                reportMemorySaveMessage = "Weekly report context saved."
-            } else {
-                reportMemorySaveSucceeded = false
-                reportMemorySaveMessage = "Unable to save weekly report context."
-            }
-        }
-    }
-
     private var isActiveProvider: Bool {
         viewModel.activeProvider?.type == viewModel.selectedProviderType
     }
@@ -515,44 +398,6 @@ struct AISettingsView: View {
         validationSucceeded = nil
     }
 
-    private func clearReportMemoryStatus() {
-        reportMemorySaveMessage = nil
-        reportMemorySaveSucceeded = nil
-    }
-
-    private func syncReportMemoryFromViewModel(force: Bool = false) {
-        let loaded = viewModel.aiReportMemory
-        if force || reportMemory == lastLoadedReportMemory {
-            reportMemory = loaded
-        }
-        lastLoadedReportMemory = loaded
-    }
-
-    private var reportMemoryCharacterCount: Int {
-        reportMemory.count
-    }
-
-    private var exampleReportMemoryPlaceholder: String {
-        """
-        ## Location & Expenses
-        Living in Thailand, non-resident / digital nomad.
-        Expenses in THB, rent in Thailand, likely a UK mortgage.
-
-        ## Income & Finances
-        Salary: £5,000/month in GBP.
-        Investing: £2,000/month.
-        Living expenses: $2,500–5,000/month.
-        Emergency fund: Wise + KBank (~$14,000).
-
-        ## Investment Profile
-        Goal: FIRE, horizon 7–15 years.
-        Risk profile: aggressive, comfortable with drawdowns on a 10+ year horizon.
-        Experience: 2–5 years.
-        Instruments: ETFs, stocks, crypto, DeFi, occasional individual equities.
-        Rebalancing: monthly.
-        """
-    }
-
     private func fieldLabel(for fieldName: String) -> String {
         fieldName
             .replacingOccurrences(of: "_", with: " ")
@@ -587,8 +432,11 @@ struct AISettingsView: View {
             }
         }
         .padding(8)
-        .background(DesignTokens.cardBackground.opacity(0.98))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .background(.white.opacity(0.5), in: .rect(cornerRadius: 8))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(DesignTokens.border)
+        )
     }
 
     private func fieldLabelView(label: String, hint: String?) -> some View {
@@ -677,5 +525,5 @@ private struct HelpButton: View {
 }
 
 #Preview {
-    AISettingsView()
+    AIProviderSettingsView()
 }
