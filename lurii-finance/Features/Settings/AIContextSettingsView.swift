@@ -37,6 +37,16 @@ struct AIContextSettingsView: View {
             .padding(.bottom, DesignTokens.pageContentPadding)
         }
         .navigationTitle("AI Context")
+        .toolbar {
+            ToolbarItem(placement: .automatic) {
+                Button("Create from Quiz") {
+                    showReportMemoryQuiz = true
+                }
+                .buttonBorderShape(.capsule)
+                .buttonStyle(.glassProminent)
+                .disabled(isSavingReportMemory)
+            }
+        }
         .onAppear {
             guard !isPreview else { return }
             viewModel.load()
@@ -79,14 +89,6 @@ struct AIContextSettingsView: View {
                 RoundedRectangle(cornerRadius: DesignTokens.blockCornerRadius)
                     .stroke(DesignTokens.border)
             )
-
-            // Action buttons
-            Button("Create from Quiz") {
-                showReportMemoryQuiz = true
-            }
-            .buttonBorderShape(.capsule)
-            .buttonStyle(.glassProminent)
-            .disabled(isSavingReportMemory)
 
             // Text editor container
             ZStack(alignment: .topLeading) {
@@ -178,21 +180,21 @@ struct AIContextSettingsView: View {
     private var exampleReportMemoryPlaceholder: String {
         """
         ## Location & Expenses
-        Living in Thailand, non-resident / digital nomad.
-        Expenses in THB, rent in Thailand, likely a UK mortgage.
+        Living in Berlin, Germany.
+        Expenses in EUR, rent in Berlin.
 
         ## Income & Finances
-        Salary: £5,000/month in GBP.
-        Investing: £2,000/month.
-        Living expenses: $2,500–5,000/month.
-        Emergency fund: Wise + KBank (~$14,000).
+        Salary: €4,000/month.
+        Investing: €1,000/month.
+        Living expenses: €1,500–2,500/month.
+        Emergency fund: ~€10,000 in savings account.
 
         ## Investment Profile
-        Goal: FIRE, horizon 7–15 years.
-        Risk profile: aggressive, comfortable with drawdowns on a 10+ year horizon.
-        Experience: 2–5 years.
-        Instruments: ETFs, stocks, crypto, DeFi, occasional individual equities.
-        Rebalancing: monthly.
+        Goal: long-term growth, horizon 10–20 years.
+        Risk profile: moderate, comfortable with short-term volatility.
+        Experience: 1–3 years.
+        Instruments: ETFs, index funds, occasional individual stocks.
+        Rebalancing: quarterly.
         """
     }
 }
