@@ -173,16 +173,13 @@ struct AIProviderSettingsView: View {
                 Text("Provider")
                     .font(.headline)
             }
-            Picker("", selection: $viewModel.selectedProviderType) {
-                ForEach(viewModel.aiProvidersAvailable) { provider in
-                    let isActive = provider.type == viewModel.activeProvider?.type
-                    let label = isActive ? "\(provider.type.uppercased()) ✓" : provider.type.uppercased()
-                    Text(label)
-                        .tag(provider.type)
+            GlassEffectContainer(spacing: 20) {
+                HStack(spacing: 4) {
+                    ForEach(viewModel.aiProvidersAvailable) { provider in
+                        providerButton(provider)
+                    }
                 }
             }
-            .pickerStyle(.segmented)
-            .padding(.leading, -12)
 
             if let description = viewModel.providerMeta(for: viewModel.selectedProviderType)?.description, !description.isEmpty {
                 Text(description)
@@ -190,6 +187,33 @@ struct AIProviderSettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
+        }
+    }
+
+    @ViewBuilder
+    private func providerButton(_ provider: AIProviderAvailable) -> some View {
+        let isActive = provider.type == viewModel.activeProvider?.type
+        let isSelected = provider.type == viewModel.selectedProviderType
+        let label = Text(provider.type.uppercased())
+            .font(.subheadline.weight(.medium))
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+
+        if isSelected {
+            Button { viewModel.selectedProviderType = provider.type } label: { label }
+                .buttonBorderShape(.capsule)
+                .buttonStyle(.glassProminent)
+                .tint(isActive ? DesignTokens.success : nil)
+        } else if isActive {
+            Button { viewModel.selectedProviderType = provider.type } label: { label }
+                .buttonBorderShape(.capsule)
+                .buttonStyle(.glass)
+                .tint(DesignTokens.success)
+        } else {
+            Button { viewModel.selectedProviderType = provider.type } label: { label }
+                .buttonBorderShape(.capsule)
+                .buttonStyle(.glass)
+                .tint(.secondary)
         }
     }
 
@@ -527,3 +551,80 @@ private struct HelpButton: View {
 #Preview {
     AIProviderSettingsView()
 }
+
+#Preview("Active + Selected") {
+    VStack(alignment: .leading, spacing: 8) {
+        Text("Provider")
+            .font(.headline)
+
+        GlassEffectContainer(spacing: 20) {
+            HStack(spacing: 4) {
+                Button {} label: {
+                    Text("OPENAI")
+                        .font(.subheadline.weight(.medium))
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                }
+                .buttonBorderShape(.capsule)
+                .buttonStyle(.glassProminent)
+                .tint(DesignTokens.success)
+
+                Button {} label: {
+                    Text("ANTHROPIC")
+                        .font(.subheadline.weight(.medium))
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                }
+                .buttonBorderShape(.capsule)
+                .buttonStyle(.glass)
+                .tint(.secondary)
+            }
+        }
+    }
+    .padding(16)
+    .background(.white, in: .rect(cornerRadius: 12))
+    .glassEffect(in: .rect(cornerRadius: 12))
+    .overlay(
+        RoundedRectangle(cornerRadius: 12)
+            .stroke(DesignTokens.border)
+    )
+    .padding(24)
+}
+#Preview("Other Selected") {
+    VStack(alignment: .leading, spacing: 8) {
+        Text("Provider")
+            .font(.headline)
+
+        GlassEffectContainer(spacing: 20) {
+            HStack(spacing: 4) {
+                Button {} label: {
+                    Text("OPENAI")
+                        .font(.subheadline.weight(.medium))
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                }
+                .buttonBorderShape(.capsule)
+                .buttonStyle(.glass)
+                .tint(DesignTokens.success)
+
+                Button {} label: {
+                    Text("ANTHROPIC")
+                        .font(.subheadline.weight(.medium))
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                }
+                .buttonBorderShape(.capsule)
+                .buttonStyle(.glassProminent)
+            }
+        }
+    }
+    .padding(16)
+    .background(.white, in: .rect(cornerRadius: 12))
+    .glassEffect(in: .rect(cornerRadius: 12))
+    .overlay(
+        RoundedRectangle(cornerRadius: 12)
+            .stroke(DesignTokens.border)
+    )
+    .padding(24)
+}
+
