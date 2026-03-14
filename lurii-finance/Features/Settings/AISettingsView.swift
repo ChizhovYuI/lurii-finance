@@ -1,7 +1,15 @@
 import SwiftUI
 
 struct AIProviderSettingsView: View {
-    @StateObject private var viewModel = SettingsViewModel()
+    @StateObject private var viewModel: SettingsViewModel
+
+    init() {
+        _viewModel = StateObject(wrappedValue: SettingsViewModel())
+    }
+
+    fileprivate init(viewModel: SettingsViewModel) {
+        _viewModel = StateObject(wrappedValue: viewModel)
+    }
     @State private var fieldValues: [String: String] = [:]
     @State private var providerStatusMessage: String?
     @State private var validationMessage: String?
@@ -173,47 +181,18 @@ struct AIProviderSettingsView: View {
                 Text("Provider")
                     .font(.headline)
             }
-            GlassEffectContainer(spacing: 20) {
-                HStack(spacing: 4) {
-                    ForEach(viewModel.aiProvidersAvailable) { provider in
-                        providerButton(provider)
-                    }
-                }
-            }
+            ProviderPickerView(
+                providers: viewModel.aiProvidersAvailable.map { ($0.type, $0.type.uppercased()) },
+                selectedType: viewModel.selectedProviderType,
+                activeType: viewModel.activeProvider?.type,
+                onSelect: { viewModel.selectedProviderType = $0 }
+            )
 
             if let description = viewModel.providerMeta(for: viewModel.selectedProviderType)?.description, !description.isEmpty {
                 Text(description)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-
-        }
-    }
-
-    @ViewBuilder
-    private func providerButton(_ provider: AIProviderAvailable) -> some View {
-        let isActive = provider.type == viewModel.activeProvider?.type
-        let isSelected = provider.type == viewModel.selectedProviderType
-        let label = Text(provider.type.uppercased())
-            .font(.subheadline.weight(.medium))
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
-
-        if isSelected {
-            Button { viewModel.selectedProviderType = provider.type } label: { label }
-                .buttonBorderShape(.capsule)
-                .buttonStyle(.glassProminent)
-                .tint(isActive ? DesignTokens.success : nil)
-        } else if isActive {
-            Button { viewModel.selectedProviderType = provider.type } label: { label }
-                .buttonBorderShape(.capsule)
-                .buttonStyle(.glass)
-                .tint(DesignTokens.success)
-        } else {
-            Button { viewModel.selectedProviderType = provider.type } label: { label }
-                .buttonBorderShape(.capsule)
-                .buttonStyle(.glass)
-                .tint(.secondary)
         }
     }
 
@@ -474,6 +453,50 @@ struct AIProviderSettingsView: View {
     }
 }
 
+struct ProviderPickerView: View {
+    let providers: [(type: String, label: String)]
+    let selectedType: String
+    let activeType: String?
+    var onSelect: (String) -> Void = { _ in }
+
+    var body: some View {
+        GlassEffectContainer(spacing: 20) {
+            HStack(spacing: 4) {
+                ForEach(providers, id: \.type) { provider in
+                    providerButton(provider)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func providerButton(_ provider: (type: String, label: String)) -> some View {
+        let isActive = provider.type == activeType
+        let isSelected = provider.type == selectedType
+        let label = Text(provider.label)
+            .font(.subheadline.weight(.medium))
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+
+        if isSelected {
+            Button { onSelect(provider.type) } label: { label }
+                .buttonBorderShape(.capsule)
+                .buttonStyle(.glassProminent)
+                .tint(isActive ? DesignTokens.success : nil)
+        } else if isActive {
+            Button { onSelect(provider.type) } label: { label }
+                .buttonBorderShape(.capsule)
+                .buttonStyle(.glass)
+                .tint(DesignTokens.success)
+        } else {
+            Button { onSelect(provider.type) } label: { label }
+                .buttonBorderShape(.capsule)
+                .buttonStyle(.glass)
+                .tint(.secondary)
+        }
+    }
+}
+
 private struct HelpButton: View {
     let text: String
     @State private var isPresented = false
@@ -548,82 +571,66 @@ private struct HelpButton: View {
     }
 }
 
-#Preview {
-    AIProviderSettingsView()
+private func previewViewModel(selectedType: String = "openai", activeType: String? = "openai") -> SettingsViewModel {
+    let vm = SettingsViewModel()
+    vm.aiProvidersAvailable = [
+        AIProviderAvailable(
+            type: "openai",
+            fields: [
+                AIProviderField(name: "api_key", required: true, secret: true, defaultValue: nil, options: nil, hint: "Get your API key at https://platform.openai.com/api-keys"),
+                AIProviderField(name: "model", required: false, secret: nil, defaultValue: "gpt-4o", options: [
+                    AIFieldOption(value: "gpt-4o", description: "Most capable"),
+                    AIFieldOption(value: "gpt-4o-mini", description: "Fast and affordable"),
+                ], hint: nil),
+                AIProviderField(name: "base_url", required: false, secret: nil, defaultValue: nil, options: nil, hint: "Custom API endpoint URL"),
+            ],
+            description: "OpenAI GPT models for weekly AI reports."
+        ),
+        AIProviderAvailable(
+            type: "anthropic",
+            fields: [
+                AIProviderField(name: "api_key", required: true, secret: true, defaultValue: nil, options: nil, hint: "Get your API key at https://console.anthropic.com/settings/keys"),
+                AIProviderField(name: "model", required: false, secret: nil, defaultValue: "claude-sonnet-4-20250514", options: [
+                    AIFieldOption(value: "claude-sonnet-4-20250514", description: "Balanced"),
+                    AIFieldOption(value: "claude-opus-4-20250514", description: "Most capable"),
+                ], hint: nil),
+            ],
+            description: "Anthropic Claude models for weekly AI reports."
+        ),
+    ]
+    vm.selectedProviderType = selectedType
+    if let activeType {
+        vm.aiProviders = [AIProviderConfig(type: activeType, apiKey: "sk-••••••••", apiKeyMasked: true, model: "gpt-4o", baseUrl: nil, active: true, fields: nil)]
+    }
+    return vm
 }
 
-#Preview("Active + Selected") {
-    VStack(alignment: .leading, spacing: 8) {
-        Text("Provider")
-            .font(.headline)
+#Preview("OpenAI Active") {
+    AIProviderSettingsView(viewModel: previewViewModel(selectedType: "openai", activeType: "openai"))
+}
 
-        GlassEffectContainer(spacing: 20) {
-            HStack(spacing: 4) {
-                Button {} label: {
-                    Text("OPENAI")
-                        .font(.subheadline.weight(.medium))
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 8)
-                }
-                .buttonBorderShape(.capsule)
-                .buttonStyle(.glassProminent)
-                .tint(DesignTokens.success)
+#Preview("Anthropic Selected") {
+    AIProviderSettingsView(viewModel: previewViewModel(selectedType: "anthropic", activeType: "openai"))
+}
 
-                Button {} label: {
-                    Text("ANTHROPIC")
-                        .font(.subheadline.weight(.medium))
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 8)
-                }
-                .buttonBorderShape(.capsule)
-                .buttonStyle(.glass)
-                .tint(.secondary)
-            }
-        }
-    }
-    .padding(16)
-    .background(.white, in: .rect(cornerRadius: 12))
-    .glassEffect(in: .rect(cornerRadius: 12))
-    .overlay(
-        RoundedRectangle(cornerRadius: 12)
-            .stroke(DesignTokens.border)
+#Preview("No Active Provider") {
+    AIProviderSettingsView(viewModel: previewViewModel(selectedType: "openai", activeType: nil))
+}
+
+#Preview("Picker: Active + Selected") {
+    ProviderPickerView(
+        providers: [("openai", "OPENAI"), ("anthropic", "ANTHROPIC")],
+        selectedType: "openai",
+        activeType: "openai"
     )
     .padding(24)
 }
-#Preview("Other Selected") {
-    VStack(alignment: .leading, spacing: 8) {
-        Text("Provider")
-            .font(.headline)
 
-        GlassEffectContainer(spacing: 20) {
-            HStack(spacing: 4) {
-                Button {} label: {
-                    Text("OPENAI")
-                        .font(.subheadline.weight(.medium))
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 8)
-                }
-                .buttonBorderShape(.capsule)
-                .buttonStyle(.glass)
-                .tint(DesignTokens.success)
-
-                Button {} label: {
-                    Text("ANTHROPIC")
-                        .font(.subheadline.weight(.medium))
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 8)
-                }
-                .buttonBorderShape(.capsule)
-                .buttonStyle(.glassProminent)
-            }
-        }
-    }
-    .padding(16)
-    .background(.white, in: .rect(cornerRadius: 12))
-    .glassEffect(in: .rect(cornerRadius: 12))
-    .overlay(
-        RoundedRectangle(cornerRadius: 12)
-            .stroke(DesignTokens.border)
+#Preview("Picker: Other Selected") {
+    ProviderPickerView(
+        providers: [("openai", "OPENAI"), ("anthropic", "ANTHROPIC")],
+        selectedType: "anthropic",
+        activeType: "openai"
     )
     .padding(24)
 }
