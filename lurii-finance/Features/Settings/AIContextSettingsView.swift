@@ -57,7 +57,8 @@ struct AIContextSettingsView: View {
     }
 
     private var reportMemorySection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 16) {
+            // Title + description container
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Weekly Report Context")
@@ -71,23 +72,23 @@ struct AIContextSettingsView: View {
                     .font(.caption)
                     .foregroundStyle(reportMemoryCharacterCount > 4000 ? DesignTokens.error : .secondary)
             }
+            .padding(DesignTokens.blockPadding)
+            .background(.white, in: .rect(cornerRadius: DesignTokens.blockCornerRadius))
+            .glassEffect(in: .rect(cornerRadius: DesignTokens.blockCornerRadius))
+            .overlay(
+                RoundedRectangle(cornerRadius: DesignTokens.blockCornerRadius)
+                    .stroke(DesignTokens.border)
+            )
 
-            HStack(spacing: 12) {
-                Button("Create from Quiz") {
-                    showReportMemoryQuiz = true
-                }
-                .buttonBorderShape(.capsule)
-                .buttonStyle(.glass)
-                .disabled(isSavingReportMemory)
-
-                Button("Edit Manually") {
-                    reportMemoryFocused = true
-                }
-                .buttonBorderShape(.capsule)
-                .buttonStyle(.glass)
-                .disabled(isSavingReportMemory)
+            // Action buttons
+            Button("Create from Quiz") {
+                showReportMemoryQuiz = true
             }
+            .buttonBorderShape(.capsule)
+            .buttonStyle(.glassProminent)
+            .disabled(isSavingReportMemory)
 
+            // Text editor container
             ZStack(alignment: .topLeading) {
                 if reportMemory.isEmpty {
                     Text(exampleReportMemoryPlaceholder)
@@ -106,12 +107,14 @@ struct AIContextSettingsView: View {
                         clearReportMemoryStatus()
                     }
             }
-            .background(.white.opacity(0.5), in: .rect(cornerRadius: DesignTokens.blockCornerRadius))
+            .background(.white, in: .rect(cornerRadius: DesignTokens.blockCornerRadius))
+            .glassEffect(in: .rect(cornerRadius: DesignTokens.blockCornerRadius))
             .overlay(
                 RoundedRectangle(cornerRadius: DesignTokens.blockCornerRadius)
                     .stroke(DesignTokens.border)
             )
 
+            // Save buttons (no container)
             HStack(spacing: 12) {
                 Button(isSavingReportMemory ? "Saving..." : "Save Context") {
                     saveReportMemory()
@@ -133,13 +136,6 @@ struct AIContextSettingsView: View {
                     .foregroundStyle(reportMemorySaveSucceeded == false ? DesignTokens.error : .secondary)
             }
         }
-        .padding(DesignTokens.blockPadding)
-        .background(.white, in: .rect(cornerRadius: DesignTokens.blockCornerRadius))
-        .glassEffect(in: .rect(cornerRadius: DesignTokens.blockCornerRadius))
-        .overlay(
-            RoundedRectangle(cornerRadius: DesignTokens.blockCornerRadius)
-                .stroke(DesignTokens.border)
-        )
     }
 
     private func saveReportMemory() {
