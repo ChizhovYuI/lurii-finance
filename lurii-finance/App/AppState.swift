@@ -29,6 +29,7 @@ final class AppState: ObservableObject {
         case sources
         case ai
         case about
+        case changelog
 
         var id: String { rawValue }
 
@@ -48,6 +49,8 @@ final class AppState: ObservableObject {
                 return "AI"
             case .about:
                 return "About"
+            case .changelog:
+                return "Changelog"
             }
         }
 
@@ -67,6 +70,8 @@ final class AppState: ObservableObject {
                 return "sparkles"
             case .about:
                 return "info.circle"
+            case .changelog:
+                return "clock.arrow.trianglehead.counterclockwise.rotate.90"
             }
         }
     }

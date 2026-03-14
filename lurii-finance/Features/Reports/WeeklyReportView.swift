@@ -10,89 +10,29 @@ struct WeeklyReportView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            if appState.generatingCommentary {
-                HStack(spacing: 8) {
-                    ProgressView()
-                        .controlSize(.small)
-                    Text(commentaryProgressText)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Reports")
+                    .font(.title)
+                    .foregroundStyle(.primary)
+
+                if appState.generatingCommentary {
+                    commentaryProgressRow
+                }
+
+                content
+
+                if let status = viewModel.sendStatus {
+                    Text("Send status: \(status)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
             }
-
-            if !viewModel.hasLoaded {
-                ProgressView("Loading report...")
-            } else if viewModel.isLoading {
-                ProgressView("Loading report...")
-            } else if let errorMessage = viewModel.errorMessage {
-                EmptyStateView(title: "Report unavailable", message: errorMessage, actionTitle: "Retry") {
-                    viewModel.load()
-                }
-            } else if let commentary = viewModel.commentary,
-                      !(commentary.text.isEmpty && (commentary.error ?? "").lowercased().contains("no ai commentary cached")) {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack {
-                            Text("Date: \(commentary.date)")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            if let model = commentary.model {
-                                Text("Model: \(model)")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                        if let error = commentary.error, !error.isEmpty {
-                            Text("AI Error: \(error)")
-                                .font(.caption)
-                                .foregroundStyle(.orange)
-                        }
-                        if commentary.stale == true {
-                            HStack(alignment: .top, spacing: 8) {
-                                Image(systemName: "exclamationmark.triangle.fill")
-                                    .foregroundStyle(.orange)
-                                Text(commentary.staleReason ?? "This report was generated before your report context changed. Generate again to refresh.")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            .padding(DesignTokens.blockPadding)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(DesignTokens.cardBackground)
-                            .clipShape(RoundedRectangle(cornerRadius: DesignTokens.blockCornerRadius))
-                        }
-
-                        if let sections = commentary.sections, !sections.isEmpty {
-                            ForEach(sections) { section in
-                                SectionCard(section: section)
-                            }
-                        } else {
-                            MarkdownBodyText(text: commentary.text)
-                                .padding(DesignTokens.blockPadding)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(DesignTokens.cardBackground)
-                                .clipShape(RoundedRectangle(cornerRadius: DesignTokens.blockCornerRadius))
-                        }
-                    }
-                }
-                .blur(radius: appState.hideBalance ? 8 : 0)
-            } else {
-                EmptyStateView(title: "No report yet", message: "Generate a weekly commentary.")
-            }
-
-            if let status = viewModel.sendStatus {
-                Text("Send status: \(status)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer()
+            .padding(.leading, DesignTokens.pageContentPadding)
+            .padding(.trailing, DesignTokens.pageContentTrailingPadding)
+            .padding(.top, DesignTokens.pageContentPadding)
+            .padding(.bottom, DesignTokens.pageContentPadding)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .padding(.leading, DesignTokens.pageContentPadding)
-        .padding(.trailing, DesignTokens.pageContentTrailingPadding)
-        .padding(.top, DesignTokens.pageContentPadding)
-        .padding(.bottom, DesignTokens.pageContentPadding)
         .navigationTitle("Reports")
         .toolbar {
             ToolbarItem(placement: .automatic) {
@@ -119,6 +59,84 @@ struct WeeklyReportView: View {
         }
     }
 
+    private var content: some View {
+        Group {
+            if !viewModel.hasLoaded || viewModel.isLoading {
+                ProgressView("Loading report...")
+            } else if let errorMessage = viewModel.errorMessage {
+                EmptyStateView(title: "Report unavailable", message: errorMessage, actionTitle: "Retry") {
+                    viewModel.load()
+                }
+            } else if let commentary = viewModel.commentary,
+                      !(commentary.text.isEmpty && (commentary.error ?? "").lowercased().contains("no ai commentary cached")) {
+                reportContent(for: commentary)
+                    .blur(radius: appState.hideBalance ? 8 : 0)
+            } else {
+                EmptyStateView(title: "No report yet", message: "Generate a weekly commentary.")
+            }
+        }
+    }
+
+    private var commentaryProgressRow: some View {
+        HStack(spacing: 8) {
+            ProgressView()
+                .controlSize(.small)
+            Text(commentaryProgressText)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    @ViewBuilder
+    private func reportContent(for commentary: AICommentary) -> some View {
+        VStack(alignment: .leading, spacing: 16) {
+            reportMetadataRow(for: commentary)
+
+            if let error = commentary.error, !error.isEmpty {
+                Label("AI Error: \(error)", systemImage: "exclamationmark.circle")
+                    .font(.caption)
+                    .foregroundStyle(DesignTokens.warning)
+            }
+
+            if commentary.stale == true {
+                ReportSurfaceCard {
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(DesignTokens.warning)
+                        Text(commentary.staleReason ?? "This report was generated before your report context changed. Generate again to refresh.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+
+            if let sections = commentary.sections, !sections.isEmpty {
+                ForEach(sections) { section in
+                    ReportArticleBlock(
+                        title: section.title,
+                        text: section.description
+                    )
+                }
+            } else {
+                ReportArticleBlock(
+                    title: "Weekly Report",
+                    text: commentary.text
+                )
+            }
+        }
+    }
+
+    private func reportMetadataRow(for commentary: AICommentary) -> some View {
+        HStack(spacing: 12) {
+            Text("Date: \(commentary.date)")
+            if let model = commentary.model, !model.isEmpty {
+                Text("Model: \(model)")
+            }
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+    }
+
     private var commentaryProgressText: String {
         let total = appState.commentaryTotalSections
         if total > 0, let current = appState.commentaryCurrentSection, !current.isEmpty {
@@ -129,167 +147,36 @@ struct WeeklyReportView: View {
     }
 }
 
-private struct SectionCard: View {
-    let section: CommentarySection
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(section.title)
-                .font(.headline)
-
-            MarkdownBodyText(text: section.description)
-        }
-        .padding(DesignTokens.blockPadding)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(DesignTokens.cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: DesignTokens.blockCornerRadius))
-    }
-}
-
-private struct MarkdownBodyText: View {
+private struct ReportArticleBlock: View {
+    let title: String
     let text: String
-
-    private var blocks: [MarkdownBlock] {
-        MarkdownBlockParser.parse(text)
-    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            ForEach(blocks) { block in
-                switch block.kind {
-                case .paragraph(let content):
-                    InlineMarkdownText(text: content)
-                case .unorderedList(let items):
-                    VStack(alignment: .leading, spacing: 6) {
-                        ForEach(Array(items.enumerated()), id: \.offset) { _, item in
-                            HStack(alignment: .top, spacing: 8) {
-                                Text("•")
-                                    .font(DesignTokens.bodyFont)
-                                InlineMarkdownText(text: item)
-                            }
-                        }
-                    }
-                case .orderedList(let items):
-                    VStack(alignment: .leading, spacing: 6) {
-                        ForEach(Array(items.enumerated()), id: \.offset) { index, item in
-                            HStack(alignment: .top, spacing: 8) {
-                                Text("\(index + 1).")
-                                    .font(DesignTokens.bodyFont)
-                                InlineMarkdownText(text: item)
-                            }
-                        }
-                    }
-                }
+            Text(title)
+                .font(.headline)
+                .foregroundStyle(.primary)
+
+            ReportSurfaceCard {
+                MarkdownBodyText(text: text)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
-private struct InlineMarkdownText: View {
-    let text: String
+private struct ReportSurfaceCard<Content: View>: View {
+    @ViewBuilder let content: Content
 
     var body: some View {
-        if let attributed = try? AttributedString(
-            markdown: text,
-            options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
-        ) {
-            Text(attributed)
-                .font(DesignTokens.bodyFont)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        } else {
-            Text(text)
-                .font(DesignTokens.bodyFont)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-}
-
-private struct MarkdownBlock: Identifiable {
-    let id: Int
-    let kind: MarkdownBlockKind
-}
-
-private enum MarkdownBlockKind {
-    case paragraph(String)
-    case unorderedList([String])
-    case orderedList([String])
-}
-
-private enum MarkdownBlockParser {
-    nonisolated static func parse(_ text: String) -> [MarkdownBlock] {
-        guard !text.isEmpty else { return [] }
-
-        var blocks: [MarkdownBlock] = []
-        var currentLines: [String] = []
-        var nextID = 0
-
-        func flushCurrentParagraph() {
-            let content = currentLines
-                .map { $0.trimmingCharacters(in: .whitespaces) }
-                .filter { !$0.isEmpty }
-                .joined(separator: "\n")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !content.isEmpty else { return }
-            blocks.append(MarkdownBlock(id: nextID, kind: .paragraph(content)))
-            nextID += 1
-            currentLines.removeAll(keepingCapacity: true)
-        }
-
-        let lines = text.components(separatedBy: "\n")
-        var index = 0
-
-        while index < lines.count {
-            let trimmed = lines[index].trimmingCharacters(in: .whitespaces)
-
-            if trimmed.isEmpty {
-                flushCurrentParagraph()
-                index += 1
-                continue
-            }
-
-            if trimmed.hasPrefix("- ") {
-                flushCurrentParagraph()
-                var items: [String] = []
-                while index < lines.count {
-                    let listLine = lines[index].trimmingCharacters(in: .whitespaces)
-                    guard listLine.hasPrefix("- ") else { break }
-                    items.append(String(listLine.dropFirst(2)).trimmingCharacters(in: .whitespaces))
-                    index += 1
-                }
-                blocks.append(MarkdownBlock(id: nextID, kind: .unorderedList(items)))
-                nextID += 1
-                continue
-            }
-
-            if isOrderedListItem(trimmed) {
-                flushCurrentParagraph()
-                var items: [String] = []
-                while index < lines.count {
-                    let listLine = lines[index].trimmingCharacters(in: .whitespaces)
-                    guard isOrderedListItem(listLine) else { break }
-                    items.append(stripOrderedListPrefix(listLine))
-                    index += 1
-                }
-                blocks.append(MarkdownBlock(id: nextID, kind: .orderedList(items)))
-                nextID += 1
-                continue
-            }
-
-            currentLines.append(trimmed)
-            index += 1
-        }
-
-        flushCurrentParagraph()
-        return blocks
-    }
-
-    private nonisolated static func isOrderedListItem(_ line: String) -> Bool {
-        line.range(of: #"^\d+\.\s+"#, options: .regularExpression) != nil
-    }
-
-    private nonisolated static func stripOrderedListPrefix(_ line: String) -> String {
-        line.replacingOccurrences(of: #"^\d+\.\s+"#, with: "", options: .regularExpression)
+        content
+            .padding(DesignTokens.blockPadding)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.white, in: .rect(cornerRadius: DesignTokens.blockCornerRadius))
+            .glassEffect(in: .rect(cornerRadius: DesignTokens.blockCornerRadius))
+            .overlay(
+                RoundedRectangle(cornerRadius: DesignTokens.blockCornerRadius)
+                    .stroke(DesignTokens.border)
+            )
     }
 }
 

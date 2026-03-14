@@ -40,26 +40,25 @@ struct SourcesListView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            if let deleteErrorMessage {
-                Text(deleteErrorMessage)
-                    .foregroundStyle(.red)
-            }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Sources")
+                    .font(.title)
+                    .foregroundStyle(.primary)
 
-            if viewModel.isLoading {
-                ProgressView("Loading sources...")
-            } else if let errorMessage = viewModel.errorMessage {
-                EmptyStateView(title: "Sources unavailable", message: errorMessage, actionTitle: "Retry") {
-                    viewModel.load()
+                if let deleteErrorMessage {
+                    Label(deleteErrorMessage, systemImage: "exclamationmark.circle")
+                        .font(.caption)
+                        .foregroundStyle(.red)
                 }
-            } else {
-                sourcesList
+
+                content
             }
+            .padding(.leading, DesignTokens.pageContentPadding)
+            .padding(.trailing, DesignTokens.pageContentTrailingPadding)
+            .padding(.top, DesignTokens.pageContentPadding)
+            .padding(.bottom, DesignTokens.pageContentPadding)
         }
-        .padding(.leading, DesignTokens.pageContentPadding)
-        .padding(.trailing, DesignTokens.pageContentTrailingPadding)
-        .padding(.top, DesignTokens.pageContentPadding)
-        .padding(.bottom, DesignTokens.pageContentPadding)
         .navigationTitle("Sources")
         .toolbar {
             ToolbarItem(placement: .automatic) {
@@ -123,6 +122,20 @@ struct SourcesListView: View {
         }
     }
 
+    private var content: some View {
+        Group {
+            if viewModel.isLoading {
+                ProgressView("Loading sources...")
+            } else if let errorMessage = viewModel.errorMessage {
+                EmptyStateView(title: "Sources unavailable", message: errorMessage, actionTitle: "Retry") {
+                    viewModel.load()
+                }
+            } else {
+                sourcesContent
+            }
+        }
+    }
+
     private var searchField: some View {
         HStack(spacing: 8) {
             Image(systemName: "magnifyingglass")
@@ -148,31 +161,36 @@ struct SourcesListView: View {
         .glassEffectID("sources-search", in: sourcesNamespace)
     }
 
-    private var sourcesList: some View {
-        List {
-            configuredSourcesSection
-            if !missingWebSyncProviders.isEmpty {
-                Section("Web Sync Quick Connect") {
-                    ForEach(missingWebSyncProviders) { provider in
-                        quickConnectProviderRow(provider)
+    private var sourcesContent: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            sourcesSection(title: "Configured Sources") {
+                if viewModel.sources.isEmpty {
+                    sectionEmptyState("No sources configured")
+                } else if filteredSources.isEmpty {
+                    sectionEmptyState("No sources match current search")
+                } else {
+                    VStack(spacing: 0) {
+                        ForEach(Array(filteredSources.enumerated()), id: \.element.id) { index, source in
+                            configuredSourceRow(source)
+                            if index < filteredSources.count - 1 {
+                                Divider()
+                            }
+                        }
                     }
                 }
             }
-        }
-        .frame(minHeight: 300)
-    }
 
-    private var configuredSourcesSection: some View {
-        Section("Configured Sources") {
-            if viewModel.sources.isEmpty {
-                Text("No sources configured")
-                    .foregroundStyle(.secondary)
-            } else if filteredSources.isEmpty {
-                Text("No sources match current search")
-                    .foregroundStyle(.secondary)
-            }
-            ForEach(filteredSources) { source in
-                configuredSourceRow(source)
+            if !missingWebSyncProviders.isEmpty {
+                sourcesSection(title: "Web Sync Quick Connect") {
+                    VStack(spacing: 0) {
+                        ForEach(Array(missingWebSyncProviders.enumerated()), id: \.element.id) { index, provider in
+                            quickConnectProviderRow(provider)
+                            if index < missingWebSyncProviders.count - 1 {
+                                Divider()
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -211,6 +229,8 @@ struct SourcesListView: View {
             .buttonStyle(.borderless)
             .disabled(isDeletingSource)
         }
+        .padding(.horizontal, DesignTokens.blockPadding)
+        .padding(.vertical, 12)
         .contentShape(Rectangle())
         .onTapGesture {
             selectedSource = source
@@ -251,6 +271,8 @@ struct SourcesListView: View {
             .controlSize(.small)
             .disabled(status.isSyncing)
         }
+        .padding(.horizontal, DesignTokens.blockPadding)
+        .padding(.vertical, 12)
     }
 
     private func sourceWebSyncActions(provider: WebSyncProvider) -> some View {
@@ -344,6 +366,44 @@ struct SourcesListView: View {
             haystack.contains { $0.contains(token) }
         }
         return localMatches && globalMatches
+    }
+
+    private func sourcesSection<Content: View>(
+        title: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title)
+                .font(.headline)
+                .foregroundStyle(.primary)
+
+            SourcesSurfaceCard {
+                content()
+            }
+        }
+    }
+
+    private func sectionEmptyState(_ text: String) -> some View {
+        Text(text)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, DesignTokens.blockPadding)
+            .padding(.vertical, 14)
+    }
+}
+
+private struct SourcesSurfaceCard<Content: View>: View {
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        content
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.white, in: .rect(cornerRadius: DesignTokens.blockCornerRadius))
+            .glassEffect(in: .rect(cornerRadius: DesignTokens.blockCornerRadius))
+            .overlay(
+                RoundedRectangle(cornerRadius: DesignTokens.blockCornerRadius)
+                    .stroke(DesignTokens.border)
+            )
     }
 }
 
