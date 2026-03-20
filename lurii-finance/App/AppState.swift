@@ -25,6 +25,7 @@ final class AppState: ObservableObject {
         case dashboard
         case allocation
         case earn
+        case transactions
         case reports
         case sources
         case aiProvider
@@ -42,6 +43,8 @@ final class AppState: ObservableObject {
                 return "Allocation"
             case .earn:
                 return "Earn"
+            case .transactions:
+                return "Transactions"
             case .reports:
                 return "Reports"
             case .sources:
@@ -65,6 +68,8 @@ final class AppState: ObservableObject {
                 return "chart.pie"
             case .earn:
                 return "percent"
+            case .transactions:
+                return "list.bullet.rectangle"
             case .reports:
                 return "doc.text"
             case .sources:

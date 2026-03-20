@@ -13,14 +13,12 @@ struct TransactionsListView: View {
     }
     @AppStorage("transactions.searchQuery") private var searchQuery = ""
     @AppStorage("transactions.selectedType") private var selectedType = "all"
-    @State private var currentPage = 0
     @State private var selectedTransaction: TransactionDTO?
     @State private var categoryPickerTxId: Int?
     @State private var typePickerTxId: Int?
     @State private var hoverTypeTxId: Int?
     @State private var hoverCategoryTxId: Int?
     @State private var showRulesSheet = false
-    private let pageSize = 50
 
     private let txTypes = ["all", "deposit", "withdrawal", "spend", "trade", "yield", "dividend", "interest", "fee", "transfer"]
 
@@ -51,7 +49,7 @@ struct TransactionsListView: View {
                     )
                 } else {
                     transactionTable
-                    paginationControls
+                        .frame(maxWidth: .infinity)
                 }
 
                 if let msg = viewModel.categorizationMessage {
@@ -93,6 +91,9 @@ struct TransactionsListView: View {
                 .buttonBorderShape(.capsule)
                 .disabled(viewModel.isCategorizing)
                 .help("Auto-categorize transactions")
+            }
+            ToolbarItem(placement: .automatic) {
+                pageControls
             }
         }
         .onAppear {
@@ -143,12 +144,38 @@ struct TransactionsListView: View {
         .glassEffect(.regular, in: Capsule())
     }
 
+    private var pageControls: some View {
+        HStack(spacing: 6) {
+            Button { viewModel.goPreviousPage() } label: {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 12, weight: .semibold))
+            }
+            .buttonStyle(.glass)
+            .buttonBorderShape(.circle)
+            .disabled(!viewModel.hasPreviousPage || viewModel.isLoading)
+
+            if let label = viewModel.windowLabel {
+                Text(label)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+
+            Button { viewModel.goNextPage() } label: {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+            }
+            .buttonStyle(.glass)
+            .buttonBorderShape(.circle)
+            .disabled(!viewModel.hasNextPage || viewModel.isLoading)
+        }
+    }
+
     private var txTypeMenu: some View {
         Menu {
             ForEach(txTypes, id: \.self) { type in
                 Button {
                     selectedType = type
-                    currentPage = 0
                     reload()
                 } label: {
                     if type == selectedType {
@@ -197,7 +224,6 @@ struct TransactionsListView: View {
                 headerCell("USD Value", width: 100, alignment: .trailing)
                 Spacer().frame(width: 12)
                 headerCell("Category", width: 140, alignment: .trailing)
-                Spacer(minLength: 0)
             }
             .padding(.horizontal, DesignTokens.blockRowHorizontalPadding)
             .padding(.vertical, 6)
@@ -215,7 +241,6 @@ struct TransactionsListView: View {
                     Text(section.label)
                         .font(DesignTokens.captionFont)
                         .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, DesignTokens.blockRowHorizontalPadding)
                         .padding(.vertical, 6)
 
@@ -240,7 +265,6 @@ struct TransactionsListView: View {
                                 )
                                 Spacer().frame(width: 12)
                                 categoryBadge(tx, width: 140)
-                                Spacer(minLength: 0)
                             }
                             .padding(.horizontal, DesignTokens.blockRowHorizontalPadding)
                             .padding(.vertical, 6)
@@ -259,36 +283,9 @@ struct TransactionsListView: View {
                         .stroke(DesignTokens.border)
                 )
             }
+
         }
-        .padding(.horizontal, DesignTokens.pageContentPadding)
-    }
-
-    private var paginationControls: some View {
-        HStack {
-            Text("\(viewModel.total) transactions")
-                .font(DesignTokens.captionFont)
-                .foregroundStyle(.secondary)
-            Spacer()
-            Button("Previous") {
-                currentPage = max(0, currentPage - 1)
-                reload()
-            }
-            .disabled(currentPage == 0)
-            .buttonStyle(.glass)
-            .buttonBorderShape(.capsule)
-
-            Text("Page \(currentPage + 1)")
-                .font(DesignTokens.captionFont)
-
-            Button("Next") {
-                currentPage += 1
-                reload()
-            }
-            .disabled((currentPage + 1) * pageSize >= viewModel.total)
-            .buttonStyle(.glass)
-            .buttonBorderShape(.capsule)
-        }
-        .padding(.horizontal, DesignTokens.pageContentPadding)
+        .fixedSize(horizontal: true, vertical: false)
     }
 
     // MARK: - Cells
@@ -499,9 +496,7 @@ struct TransactionsListView: View {
             sourceName: nil,
             txType: selectedType == "all" ? nil : selectedType,
             category: nil,
-            search: searchQuery.isEmpty ? nil : searchQuery,
-            limit: pageSize,
-            offset: currentPage * pageSize
+            search: searchQuery.isEmpty ? nil : searchQuery
         )
     }
 }

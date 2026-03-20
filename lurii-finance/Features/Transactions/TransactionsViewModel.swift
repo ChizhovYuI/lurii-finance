@@ -7,21 +7,26 @@ final class TransactionsViewModel: ObservableObject {
     @Published var categories: [TransactionCategoryDTO] = []
     @Published var total: Int = 0
     @Published var isLoading = false
-    @Published var isLoadingMore = false
     @Published var errorMessage: String?
     @Published var isCategorizing = false
     @Published var categorizationMessage: String?
 
-    /// Whether older pages are available.
-    var hasMore: Bool { nextEndDate != nil }
+    /// Current page (0-indexed). Each page is a 7-day window.
+    @Published var currentPage = 0
+    /// Window label for the current page (e.g. "Jun 10 – Jun 17").
+    @Published var windowLabel: String?
+    /// Whether a next (older) page exists.
+    @Published var hasNextPage = false
+
+    var hasPreviousPage: Bool { currentPage > 0 }
 
     private var loadTask: Task<Void, Never>?
-    private var loadMoreTask: Task<Void, Never>?
     private var loadSequence = 0
-    /// Cursor for the next page (end date of the next 7-day window).
-    private var nextEndDate: String?
+    /// Stack of `end` cursors: index N holds the cursor for page N.
+    /// Page 0 has no cursor (nil).
+    private var pageCursors: [String?] = [nil]
 
-    /// Tracks current filter params so `loadMore` can reuse them.
+    /// Tracks current filter params so page navigation can reuse them.
     private var currentSourceName: String?
     private var currentTxType: String?
     private var currentCategory: String?
@@ -29,26 +34,45 @@ final class TransactionsViewModel: ObservableObject {
 
     nonisolated init() {}
 
-    /// Loads the first page (replaces existing data).
+    /// Loads the first page (replaces existing data, resets pagination).
     func load(
         sourceName: String? = nil,
         txType: String? = nil,
         category: String? = nil,
         search: String? = nil
     ) {
-        loadTask?.cancel()
-        loadMoreTask?.cancel()
-        loadSequence += 1
-        let sequence = loadSequence
-        nextEndDate = nil
-
         currentSourceName = sourceName
         currentTxType = txType
         currentCategory = category
         currentSearch = search
+        currentPage = 0
+        pageCursors = [nil]
 
+        loadPage(0)
+    }
+
+    /// Navigate to the next (older) page.
+    func goNextPage() {
+        guard hasNextPage else { return }
+        loadPage(currentPage + 1)
+    }
+
+    /// Navigate to the previous (newer) page.
+    func goPreviousPage() {
+        guard hasPreviousPage else { return }
+        loadPage(currentPage - 1)
+    }
+
+    private func loadPage(_ page: Int) {
+        loadTask?.cancel()
+        loadSequence += 1
+        let sequence = loadSequence
+
+        currentPage = page
         isLoading = true
         errorMessage = nil
+
+        let cursor = page < pageCursors.count ? pageCursors[page] : nil
 
         loadTask = Task {
             defer {
@@ -59,10 +83,11 @@ final class TransactionsViewModel: ObservableObject {
 
             do {
                 async let txTask = APIClient.shared.getTransactions(
-                    sourceName: sourceName,
-                    txType: txType,
-                    category: category,
-                    search: search
+                    sourceName: currentSourceName,
+                    txType: currentTxType,
+                    category: currentCategory,
+                    search: currentSearch,
+                    end: cursor
                 )
                 async let catTask = APIClient.shared.getTransactionCategories()
 
@@ -73,7 +98,19 @@ final class TransactionsViewModel: ObservableObject {
 
                 self.transactions = response.items
                 self.total = response.total
-                self.nextEndDate = response.nextEndDate
+                self.hasNextPage = response.nextEndDate != nil
+                self.windowLabel = Self.formatWindowLabel(start: response.windowStart, end: response.windowEnd)
+
+                // Store cursor for the next page.
+                if let next = response.nextEndDate {
+                    let nextPage = page + 1
+                    if nextPage < self.pageCursors.count {
+                        self.pageCursors[nextPage] = next
+                    } else {
+                        self.pageCursors.append(next)
+                    }
+                }
+
                 if let cats {
                     self.categories = cats
                 }
@@ -86,37 +123,15 @@ final class TransactionsViewModel: ObservableObject {
         }
     }
 
-    /// Loads the next 7-day window and appends to existing data.
-    func loadMore() {
-        guard hasMore, !isLoading, !isLoadingMore else { return }
-
-        isLoadingMore = true
-        let sequence = loadSequence
-        let cursor = nextEndDate
-
-        loadMoreTask = Task {
-            defer { self.isLoadingMore = false }
-
-            do {
-                let response = try await APIClient.shared.getTransactions(
-                    sourceName: currentSourceName,
-                    txType: currentTxType,
-                    category: currentCategory,
-                    search: currentSearch,
-                    end: cursor
-                )
-
-                guard !Task.isCancelled, sequence == self.loadSequence else { return }
-
-                let existingIDs = Set(self.transactions.map(\.id))
-                let newItems = response.items.filter { !existingIDs.contains($0.id) }
-                self.transactions.append(contentsOf: newItems)
-                self.total += response.total
-                self.nextEndDate = response.nextEndDate
-            } catch {
-                guard !Task.isCancelled else { return }
-            }
-        }
+    private static func formatWindowLabel(start: String?, end: String?) -> String? {
+        guard let start, let end else { return nil }
+        let isoFmt = DateFormatter()
+        isoFmt.dateFormat = "yyyy-MM-dd"
+        guard let startDate = isoFmt.date(from: String(start.prefix(10))),
+              let endDate = isoFmt.date(from: String(end.prefix(10))) else { return nil }
+        let displayFmt = DateFormatter()
+        displayFmt.dateFormat = "MMM d"
+        return "\(displayFmt.string(from: startDate)) – \(displayFmt.string(from: endDate))"
     }
 
     func runCategorization() {

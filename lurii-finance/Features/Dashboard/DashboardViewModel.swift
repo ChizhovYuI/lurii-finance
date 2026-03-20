@@ -112,6 +112,7 @@ final class DashboardViewModel: ObservableObject {
     @Published var allocation: AllocationResponse?
     @Published var sourceMovers: SourceMoversResponse?
     @Published var earnSummary: EarnSummaryResponse?
+    @Published var txAnalytics: TransactionAnalyticsSummary?
     @Published var isLoading = false
     @Published var errorMessage: String?
 
@@ -141,6 +142,7 @@ final class DashboardViewModel: ObservableObject {
                 async let allocationTask = APIClient.shared.getAllocation()
                 async let sourceMoversTask = APIClient.shared.getSourceMovers()
                 async let earnSummaryTask = APIClient.shared.getEarnSummary()
+                async let txAnalyticsTask = APIClient.shared.getTransactionAnalyticsSummary()
 
                 let summary = try await summaryTask
                 async let historyTask = APIClient.shared.getPortfolioNetWorthHistory(days: range.historyDays(endingOn: summary.date))
@@ -149,6 +151,7 @@ final class DashboardViewModel: ObservableObject {
                 let allocation = try? await allocationTask
                 let sourceMovers = try? await sourceMoversTask
                 let earnSummary = try? await earnSummaryTask
+                let txAnalytics = try? await txAnalyticsTask
 
                 guard !Task.isCancelled, sequence == self.loadSequence else { return }
 
@@ -158,6 +161,7 @@ final class DashboardViewModel: ObservableObject {
                 self.allocation = allocation
                 self.sourceMovers = sourceMovers
                 self.earnSummary = earnSummary
+                self.txAnalytics = txAnalytics
             } catch is CancellationError {
                 return
             } catch {
@@ -168,6 +172,7 @@ final class DashboardViewModel: ObservableObject {
                 self.allocation = nil
                 self.sourceMovers = nil
                 self.earnSummary = nil
+                self.txAnalytics = nil
                 self.errorMessage = "Unable to load dashboard data: \(error.localizedDescription)"
             }
         }

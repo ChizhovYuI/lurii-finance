@@ -59,4 +59,20 @@ enum APIEndpoints {
     static let updatesRestart = "/api/v1/updates/restart"
 
     static let ws = "/api/v1/ws"
+
+    static let transactions = "/api/v1/transactions"
+    static func transactionDetail(_ id: Int) -> String { "/api/v1/transactions/\(id)" }
+    static func transactionMetadata(_ id: Int) -> String { "/api/v1/transactions/\(id)/metadata" }
+    static func transactionUnlink(_ id: Int) -> String { "/api/v1/transactions/\(id)/link-transfer" }
+    static let transactionLinkTransfer = "/api/v1/transactions/link-transfer"
+    static let transactionCategorize = "/api/v1/transactions/categorize"
+    static let transactionReviewQueue = "/api/v1/transactions/review-queue"
+    static let transactionCategories = "/api/v1/transactions/categories"
+    static func transactionCategory(_ id: Int) -> String { "/api/v1/transactions/\(id)/category" }
+    static func transactionType(_ id: Int) -> String { "/api/v1/transactions/\(id)/type" }
+    static let categoryRules = "/api/v1/category-rules"
+    static let categoryRulesPreview = "/api/v1/category-rules/preview"
+    static let categoryRulesReset = "/api/v1/category-rules/reset"
+    static let transactionAnalyticsSummary = "/api/v1/transactions/analytics/summary"
+    static let transactionAnalyticsTrends = "/api/v1/transactions/analytics/trends"
 }
