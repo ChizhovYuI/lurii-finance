@@ -664,7 +664,7 @@ struct TransferCandidate: Codable, Identifiable {
     let asset: String
     let amount: String
     let usdValue: String
-    let score: Double
+    let usdDiff: String?
 }
 
 struct StatementUploadResponse: Codable {

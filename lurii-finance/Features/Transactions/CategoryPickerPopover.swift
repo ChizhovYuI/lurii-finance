@@ -15,16 +15,15 @@ struct CategoryPickerPopover: View {
     @State private var newCategoryName = ""
 
     var body: some View {
-        ScrollView {
-            HStack(alignment: .top, spacing: 0) {
-                // Left: category list.
+        HStack(alignment: .top, spacing: 0) {
+            // Left: category list.
+            ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     // Context header: description and source.
                     if let desc = tx.description, !desc.isEmpty {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(desc)
                                 .font(.system(size: 12, weight: .medium))
-                                .lineLimit(2)
                             Text("\(tx.sourceName) · \(tx.resolvedType)")
                                 .font(.system(size: 11))
                                 .foregroundStyle(.secondary)
@@ -101,11 +100,13 @@ struct CategoryPickerPopover: View {
                         .buttonStyle(.plain)
                     }
                 }
-                .frame(width: 200)
+            }
+            .frame(minWidth: 180, idealWidth: 220)
 
-                // Right: raw fields panel.
-                Divider()
+            // Right: raw fields panel.
+            Divider()
 
+            ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     if let matchedRule {
                         VStack(alignment: .leading, spacing: 2) {
@@ -135,7 +136,6 @@ struct CategoryPickerPopover: View {
                                         .foregroundStyle(.secondary)
                                     Text(value)
                                         .font(.system(size: 11, design: .monospaced))
-                                        .lineLimit(2)
                                         .textSelection(.enabled)
                                 }
                             }
@@ -150,12 +150,11 @@ struct CategoryPickerPopover: View {
                             .padding(12)
                     }
                 }
-                .frame(width: 220)
             }
+            .frame(minWidth: 200, idealWidth: 280)
         }
-        .scrollBounceBehavior(.basedOnSize)
-        .frame(height: 320)
-        .padding(.vertical, 4)
+        .presentationSizing(.fitted)
+        .frame(minWidth: 400, maxWidth: 600, minHeight: 120, maxHeight: 600)
         .task { await loadDetail() }
     }
 

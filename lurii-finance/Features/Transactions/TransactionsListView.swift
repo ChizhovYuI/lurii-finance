@@ -443,10 +443,10 @@ struct TransactionsListView: View {
             .onTapGesture {
                 typePickerTxId = isPickerOpen ? nil : tx.id
             }
-            .popover(isPresented: Binding(
+            .sheet(isPresented: Binding(
                 get: { typePickerTxId == tx.id },
                 set: { if !$0 { typePickerTxId = nil } }
-            ), arrowEdge: .bottom) {
+            )) {
                 TransactionEditPopover(
                     tx: tx,
                     types: txTypes.filter { $0 != "all" },
@@ -523,10 +523,10 @@ struct TransactionsListView: View {
         .onTapGesture {
             categoryPickerTxId = isPickerOpen ? nil : tx.id
         }
-        .popover(isPresented: Binding(
+        .sheet(isPresented: Binding(
             get: { categoryPickerTxId == tx.id },
             set: { if !$0 { categoryPickerTxId = nil } }
-        ), arrowEdge: .trailing) {
+        )) {
             CategoryPickerPopover(
                 tx: tx,
                 categories: viewModel.categoriesForType(tx.resolvedType),
@@ -619,20 +619,21 @@ private struct TransactionEditPopover: View {
     }
 
     var body: some View {
-        ScrollView {
-            HStack(alignment: .top, spacing: 0) {
+        HStack(alignment: .top, spacing: 0) {
+            ScrollView {
                 leftPanel
-                    .frame(width: 200)
-
-                Divider()
-
-                rightPanel
-                    .frame(width: 220)
             }
+            .frame(minWidth: 180, idealWidth: 220)
+
+            Divider()
+
+            ScrollView {
+                rightPanel
+            }
+            .frame(minWidth: 200, idealWidth: 280)
         }
-        .scrollBounceBehavior(.basedOnSize)
-        .frame(maxHeight: 400)
-        .padding(.vertical, 4)
+        .presentationSizing(.fitted)
+        .frame(minWidth: 400, maxWidth: 600, minHeight: 120, maxHeight: 600)
         .task { await loadDetail() }
     }
 
@@ -721,7 +722,7 @@ private struct TransactionEditPopover: View {
             Button {
                 selectedType = type
                 onSetType(type)
-                step = .category
+                advanceAfterType(type)
             } label: {
                 HStack {
                     Text(type)
@@ -743,6 +744,23 @@ private struct TransactionEditPopover: View {
         }
     }
 
+    private func advanceAfterType(_ type: String) {
+        let cats = categories.filter { $0.txType == type }
+        if cats.count == 1 {
+            onSetCategory(cats[0].category)
+            if cats[0].category == "transfer" {
+                Task { await loadCandidates() }
+                step = .source
+            } else {
+                onDone()
+            }
+        } else if cats.isEmpty {
+            onDone()
+        } else {
+            step = .category
+        }
+    }
+
     // MARK: - Step 2: Category
 
     private var categoryList: some View {
@@ -757,7 +775,7 @@ private struct TransactionEditPopover: View {
                     let isSelected = cat.category == tx.metadata?.category
                     Button {
                         onSetCategory(cat.category)
-                        if effectiveType == "transfer" || effectiveType == "withdrawal" {
+                        if cat.category == "transfer" {
                             Task { await loadCandidates() }
                             step = .source
                         } else {
@@ -951,7 +969,6 @@ private struct TransactionEditPopover: View {
                                 .foregroundStyle(.secondary)
                             Text(value)
                                 .font(.system(size: 11, design: .monospaced))
-                                .lineLimit(2)
                                 .textSelection(.enabled)
                         }
                     }
