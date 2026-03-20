@@ -99,6 +99,8 @@ struct DashboardView: View {
             .frame(minHeight: 174)
             DashboardTransactionCard(analytics: viewModel.txAnalytics)
                 .frame(minHeight: 174)
+            DashboardMonthlyTrendsCard(trends: viewModel.monthlyTrends)
+                .frame(minHeight: 220)
             DashboardStatementDropCard()
                 .frame(minHeight: 174)
         }
@@ -1126,6 +1128,114 @@ private struct DashboardTransactionCard: View {
             }
         }
         .buttonStyle(.plain)
+    }
+}
+
+private struct DashboardMonthlyTrendsCard: View {
+    @EnvironmentObject private var appState: AppState
+
+    let trends: [MonthlyTrendPoint]
+
+    @State private var hoverIndex: Int?
+
+    private var spendingValues: [Double] { trends.compactMap { Double($0.spending) } }
+    private var incomeValues: [Double] { trends.compactMap { Double($0.income) } }
+    private var maxValue: Double { max(spendingValues.max() ?? 0, incomeValues.max() ?? 0, 1) }
+
+    private var monthLabels: [String] {
+        let fmt = DateFormatter()
+        fmt.dateFormat = "yyyy-MM"
+        let display = DateFormatter()
+        display.dateFormat = "MMM"
+        return trends.map { point in
+            guard let date = fmt.date(from: point.month) else { return point.month }
+            return display.string(from: date)
+        }
+    }
+
+    var body: some View {
+        DashboardCardShell {
+            DashboardCardHeader(title: "Monthly Trends", systemImage: "chart.bar")
+
+            if trends.count < 2 {
+                DashboardUnavailableMessage("Not enough data for trends chart.")
+            } else {
+                GeometryReader { geometry in
+                    let barGroupWidth = geometry.size.width / CGFloat(trends.count)
+                    let barWidth = max((barGroupWidth - 8) / 2, 4)
+                    let chartHeight = geometry.size.height
+
+                    ZStack(alignment: .bottom) {
+                        HStack(alignment: .bottom, spacing: 0) {
+                            ForEach(Array(trends.enumerated()), id: \.offset) { index, point in
+                                let spending = Double(point.spending) ?? 0
+                                let income = Double(point.income) ?? 0
+                                let isHovered = hoverIndex == index
+
+                                VStack(spacing: 2) {
+                                    HStack(alignment: .bottom, spacing: 2) {
+                                        RoundedRectangle(cornerRadius: 3)
+                                            .fill(DesignTokens.success.opacity(isHovered ? 1 : 0.7))
+                                            .frame(width: barWidth, height: max(CGFloat(income / maxValue) * (chartHeight - 20), income > 0 ? 2 : 0))
+
+                                        RoundedRectangle(cornerRadius: 3)
+                                            .fill(DesignTokens.error.opacity(isHovered ? 1 : 0.7))
+                                            .frame(width: barWidth, height: max(CGFloat(spending / maxValue) * (chartHeight - 20), spending > 0 ? 2 : 0))
+                                    }
+
+                                    Text(index < monthLabels.count ? monthLabels[index] : "")
+                                        .font(.system(size: 9))
+                                        .foregroundStyle(.secondary)
+                                }
+                                .frame(width: barGroupWidth)
+                                .onHover { hovering in
+                                    hoverIndex = hovering ? index : nil
+                                }
+                            }
+                        }
+
+                        if let idx = hoverIndex, idx < trends.count {
+                            let point = trends[idx]
+                            let spending = Double(point.spending) ?? 0
+                            let income = Double(point.income) ?? 0
+                            let label = idx < monthLabels.count ? monthLabels[idx] : point.month
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(label)
+                                    .font(.system(size: 10, weight: .semibold))
+                                if !appState.hideBalance {
+                                    HStack(spacing: 8) {
+                                        Label(String(format: "$%.0f", income), systemImage: "arrow.down")
+                                            .font(.system(size: 10, weight: .medium))
+                                            .foregroundStyle(DesignTokens.success)
+                                        Label(String(format: "$%.0f", spending), systemImage: "arrow.up")
+                                            .font(.system(size: 10, weight: .medium))
+                                            .foregroundStyle(DesignTokens.error)
+                                    }
+                                }
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 6))
+                            .position(
+                                x: (CGFloat(idx) + 0.5) * barGroupWidth,
+                                y: 16
+                            )
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, minHeight: 120)
+
+                HStack(spacing: 12) {
+                    Label("Income", systemImage: "circle.fill")
+                        .font(.system(size: 10))
+                        .foregroundStyle(DesignTokens.success)
+                    Label("Spending", systemImage: "circle.fill")
+                        .font(.system(size: 10))
+                        .foregroundStyle(DesignTokens.error)
+                }
+            }
+        }
     }
 }
 

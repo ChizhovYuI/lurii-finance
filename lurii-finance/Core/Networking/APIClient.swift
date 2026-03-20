@@ -264,6 +264,13 @@ struct APIClient {
         return try await request(path: APIEndpoints.transactionCategories, method: "POST", body: body)
     }
 
+    func getMonthlyTrends(months: Int = 6) async throws -> MonthlyTrendsResponse {
+        let url = APIEndpoints.url(path: APIEndpoints.transactionAnalyticsTrends, queryItems: [
+            URLQueryItem(name: "months", value: String(months))
+        ])
+        return try await request(url: url, method: "GET")
+    }
+
     func getTransactionReviewQueue(limit: Int = 50) async throws -> TransactionsListResponse {
         let url = APIEndpoints.url(path: APIEndpoints.transactionReviewQueue, queryItems: [
             URLQueryItem(name: "limit", value: String(limit))
