@@ -324,6 +324,8 @@ struct EarnSummaryResponse: Codable {
     let totalUsdValue: String?
     let weightedAvgApy: String?
     let positions: [EarnPosition]
+    let idleAssets: [EarnPosition]?
+    let idleTotalUsdValue: String?
 }
 
 struct EarnHistoryPoint: Codable, Identifiable {
@@ -504,3 +506,182 @@ struct UpdateStatusResponse: Codable {
 struct NotifyResponse: Codable {
     let sent: Bool
 }
+
+// MARK: - Transactions
+
+struct TransactionGroupDTO: Codable {
+    let type: String
+    let childIds: [Int]
+    let childCount: Int
+    let fromSource: String
+    let toSource: String
+    let fromSourceType: String?
+    let toSourceType: String?
+    let fromAsset: String
+    let toAsset: String
+    let fromAmount: String
+    let toAmount: String
+}
+
+
+struct TransactionDTO: Codable, Identifiable {
+    let id: Int
+    let date: String
+    let time: String?
+    let source: String
+    let sourceName: String
+    let txType: String
+    let effectiveType: String?
+    let asset: String
+    let amount: String
+    let usdValue: String
+    let counterpartyAsset: String?
+    let counterpartyAmount: String?
+    let txId: String?
+    let tradeSide: String?
+    let description: String?
+    let metadata: TransactionMetadataDTO?
+    let group: TransactionGroupDTO?
+    // Detail-only fields (present in GET /transactions/{id}).
+    let rawFields: [String: String]?
+    let matchedRule: CategoryRuleDTO?
+    let availableCategories: [AvailableCategoryDTO]?
+    let availableTypes: [String]?
+
+    /// Resolved type: type_override ?? tx_type.
+    var resolvedType: String { effectiveType ?? txType }
+}
+
+struct TransactionMetadataDTO: Codable {
+    let category: String?
+    let categorySource: String?
+    let categoryConfidence: Double?
+    let typeOverride: String?
+    let isInternalTransfer: Bool?
+    let transferPairId: Int?
+    let transferDetectedBy: String?
+    let reviewed: Bool?
+    let notes: String?
+}
+
+struct CategoryRuleDTO: Codable, Identifiable {
+    let id: Int?
+    let typeMatch: String
+    let typeOperator: String?
+    let fieldName: String?
+    let fieldOperator: String?
+    let fieldValue: String?
+    let source: String?
+    let resultCategory: String
+    let priority: Int?
+    let builtin: Bool?
+    let deleted: Bool?
+}
+
+struct AvailableCategoryDTO: Codable {
+    let category: String
+    let displayName: String
+    let txType: String
+}
+
+struct SetCategoryRequest: Codable {
+    let category: String
+}
+
+struct SetCategoryResponse: Codable {
+    let category: String
+    let categorySource: String
+    let categoryConfidence: Double
+}
+
+struct SetTypeRequest: Codable {
+    let type: String
+}
+
+struct CategoryRuleCreateRequest: Codable {
+    let typeMatch: String
+    let resultCategory: String
+    var typeOperator: String = "eq"
+    var fieldName: String?
+    var fieldOperator: String?
+    var fieldValue: String?
+    var source: String = "*"
+    var priority: Int?
+}
+
+struct RulePreviewResponse: Codable {
+    let affectedCount: Int
+    let sample: [RulePreviewItem]
+}
+
+struct RulePreviewItem: Codable, Identifiable {
+    var id: Int { self.txId }
+    let txId: Int
+    let date: String
+    let source: String
+    let description: String?
+    let currentCategory: String?
+    let newCategory: String
+
+    private enum CodingKeys: String, CodingKey {
+        case txId = "id"
+        case date, source, description, currentCategory, newCategory
+    }
+}
+
+struct ResetRulesRequest: Codable {
+    let source: String?
+}
+
+struct TransactionsListResponse: Codable {
+    let items: [TransactionDTO]
+    let total: Int
+    let totalUngrouped: Int?
+    let limit: Int
+    let offset: Int
+}
+
+struct TransactionCategoryDTO: Codable, Identifiable {
+    let id: Int
+    let txType: String
+    let category: String
+    let displayName: String
+    let sortOrder: Int
+}
+
+struct TransactionMetadataUpdateRequest: Codable {
+    var category: String?
+    var categorySource: String?
+    var reviewed: Bool?
+    var notes: String?
+}
+
+struct TransactionLinkRequest: Codable {
+    let txIdA: Int
+    let txIdB: Int
+}
+
+struct TransactionAnalyticsSummary: Codable {
+    let start: String
+    let end: String
+    let totalSpending: String
+    let totalIncome: String
+    let spendingByCategory: [CategoryBreakdownRow]
+    let incomeByCategory: [CategoryBreakdownRow]
+}
+
+struct CategoryBreakdownRow: Codable, Identifiable {
+    var id: String { category }
+    let category: String
+    let displayName: String
+    let usdValue: String
+    let percentage: String
+}
+
+struct CategorizationResult: Codable {
+    let total: Int
+    let categorized: Int
+    let transfers: Int
+    let aiCategorized: Int
+}
+

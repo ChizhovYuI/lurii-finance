@@ -63,6 +63,7 @@ struct EarnSummaryView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     totals(summary)
                     positionsTable(summary)
+                    idleAssetsTable(summary)
                 }
             } else {
                 EmptyStateView(title: "No earn data", message: "Yield-bearing positions will appear here once available.")
@@ -102,6 +103,7 @@ struct EarnSummaryView: View {
         let avgApy = appState.hideBalance
             ? "••••"
             : (ValueFormatters.percent(from: summary.weightedAvgApy) ?? summary.weightedAvgApy ?? "—")
+        let dates = viewModel.history.map(\.date)
         let totalValueHistory = viewModel.history.compactMap { Double($0.totalUsdValue) }
         let weightedAvgApyHistory = viewModel.history.compactMap { Double($0.weightedAvgApy) }
 
@@ -110,7 +112,8 @@ struct EarnSummaryView: View {
                 title: "Total Value",
                 value: totalValue,
                 systemImage: "dollarsign.circle",
-                graphValues: totalValueHistory
+                graphValues: totalValueHistory,
+                dates: dates
             )
             .frame(minHeight: 120)
 
@@ -118,7 +121,9 @@ struct EarnSummaryView: View {
                 title: "APY",
                 value: avgApy,
                 systemImage: "percent",
-                graphValues: weightedAvgApyHistory
+                graphValues: weightedAvgApyHistory,
+                dates: dates,
+                formatValue: { String(format: "%.2f%%", $0 * 100) }
             )
             .frame(minHeight: 120)
         }
@@ -167,6 +172,95 @@ struct EarnSummaryView: View {
             RoundedRectangle(cornerRadius: DesignTokens.blockCornerRadius)
                 .stroke(DesignTokens.border)
         )
+    }
+
+    @ViewBuilder
+    private func idleAssetsTable(_ summary: EarnSummaryResponse) -> some View {
+        let idle = summary.idleAssets ?? []
+        if !idle.isEmpty {
+            let localTokens = filter.lowercased()
+                .split(whereSeparator: { $0.isWhitespace }).map(String.init)
+            let globalTokens = appState.globalSearchQuery.lowercased()
+                .split(whereSeparator: { $0.isWhitespace }).map(String.init)
+            let filtered: [EarnPosition] = if localTokens.isEmpty && globalTokens.isEmpty {
+                idle
+            } else {
+                idle.filter { position in
+                    let haystack = [position.asset.lowercased(), position.source.lowercased()]
+                    let localMatches = localTokens.allSatisfy { token in haystack.contains { $0.contains(token) } }
+                    let globalMatches = globalTokens.allSatisfy { token in haystack.contains { $0.contains(token) } }
+                    return localMatches && globalMatches
+                }
+            }
+            let idleTotalText = appState.hideBalance
+                ? "••••"
+                : (ValueFormatters.currency(from: summary.idleTotalUsdValue, code: "usd") ?? "—")
+
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(DesignTokens.warning)
+                    Text("Idle Assets")
+                        .font(.headline)
+                    Spacer(minLength: 8)
+                    Text(idleTotalText)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+
+                Text("Crypto and stablecoins not earning yield")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+
+                idleHeaderRow
+
+                if filtered.isEmpty {
+                    Text("No matching idle assets")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(filtered) { position in
+                        idleRow(position)
+                    }
+                }
+            }
+            .padding(DesignTokens.blockPadding)
+            .background(.white, in: .rect(cornerRadius: DesignTokens.blockCornerRadius))
+            .glassEffect(in: .rect(cornerRadius: DesignTokens.blockCornerRadius))
+            .overlay(
+                RoundedRectangle(cornerRadius: DesignTokens.blockCornerRadius)
+                    .stroke(DesignTokens.warning.opacity(0.4))
+            )
+        }
+    }
+
+    private var idleHeaderRow: some View {
+        HStack(spacing: 12) {
+            headerCell("Asset")
+            headerCell("Source")
+            headerCell("Amount", alignment: .trailing)
+            headerCell("Price", alignment: .trailing)
+            headerCell("Value", alignment: .trailing)
+        }
+        .padding(.horizontal, DesignTokens.blockRowHorizontalPadding)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+    }
+
+    private func idleRow(_ position: EarnPosition) -> some View {
+        let hidden = appState.hideBalance
+        return HStack(spacing: 12) {
+            rowCell(position.asset)
+            sourceCell(position.source)
+            let amountText = hidden ? "••••" : (ValueFormatters.number(from: position.amount) ?? position.amount ?? "—")
+            rowCell(amountText, alignment: .trailing)
+            let priceText = ValueFormatters.currency(from: position.price, code: "usd") ?? position.price ?? "—"
+            rowCell(priceText, alignment: .trailing)
+            let valueText = hidden ? "••••" : (ValueFormatters.currency(from: position.usdValue, code: "usd") ?? position.usdValue ?? "—")
+            rowCell(valueText, alignment: .trailing)
+        }
+        .padding(.horizontal, DesignTokens.blockRowHorizontalPadding)
+        .font(.subheadline)
     }
 
     private var headerRow: some View {
@@ -232,6 +326,8 @@ private struct EarnSummaryMetricCard: View {
     let value: String
     let systemImage: String
     let graphValues: [Double]
+    var dates: [String] = []
+    var formatValue: ((Double) -> String)?
 
     var body: some View {
         HStack(spacing: 14) {
@@ -255,7 +351,7 @@ private struct EarnSummaryMetricCard: View {
             .frame(width: 118, alignment: .leading)
 
             if graphValues.count > 1 {
-                EarnSummarySparkline(values: graphValues)
+                EarnSummarySparkline(values: graphValues, dates: dates, formatValue: formatValue)
                     .frame(maxWidth: .infinity, minHeight: 88, maxHeight: .infinity)
                     .accessibilityHidden(true)
             }
@@ -273,12 +369,17 @@ private struct EarnSummaryMetricCard: View {
 
 private struct EarnSummarySparkline: View {
     let values: [Double]
+    var dates: [String] = []
+    var formatValue: ((Double) -> String)?
+
+    @State private var hoverIndex: Int?
 
     var body: some View {
         GeometryReader { geometry in
             let sparkline = EarnSparklineMetrics(values: values, size: geometry.size)
+            let pts = sparkline.points
 
-            ZStack {
+            ZStack(alignment: .topLeading) {
                 sparkline.areaPath
                     .fill(
                         LinearGradient(
@@ -296,8 +397,55 @@ private struct EarnSummarySparkline: View {
                         Color.accentColor.opacity(0.9),
                         style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round)
                     )
+
+                if let idx = hoverIndex, idx < pts.count, idx < values.count {
+                    let pt = pts[idx]
+
+                    Path { path in
+                        path.move(to: CGPoint(x: pt.x, y: 0))
+                        path.addLine(to: CGPoint(x: pt.x, y: geometry.size.height))
+                    }
+                    .stroke(Color.accentColor.opacity(0.3), style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+
+                    Circle()
+                        .fill(Color.accentColor)
+                        .frame(width: 6, height: 6)
+                        .position(pt)
+
+                    let valStr = formatValue?(values[idx]) ?? String(format: "%.2f", values[idx])
+                    let dateStr: String? = idx < dates.count ? dates[idx] : nil
+                    let isRightHalf = pt.x > geometry.size.width / 2
+
+                    VStack(alignment: isRightHalf ? .trailing : .leading, spacing: 1) {
+                        if let dateStr {
+                            Text(dateStr)
+                                .font(.system(size: 9, weight: .medium, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                        }
+                        Text(valStr)
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.primary)
+                    }
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 4))
+                    .position(
+                        x: isRightHalf ? pt.x - 44 : pt.x + 44,
+                        y: max(16, min(pt.y, geometry.size.height - 16))
+                    )
+                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .onContinuousHover { phase in
+                switch phase {
+                case .active(let location):
+                    hoverIndex = sparkline.nearestIndex(for: location.x)
+                case .ended:
+                    hoverIndex = nil
+                @unknown default:
+                    hoverIndex = nil
+                }
+            }
         }
     }
 }
@@ -336,7 +484,7 @@ private struct EarnSparklineMetrics {
         return min(max(normalizedY, verticalInset), baseline)
     }
 
-    private var points: [CGPoint] {
+    var points: [CGPoint] {
         guard values.count > 1, size.width > 0, size.height > 0 else { return [] }
 
         let usableWidth = max(size.width - (horizontalInset * 2), 1)
@@ -346,6 +494,21 @@ private struct EarnSparklineMetrics {
             let x = horizontalInset + (usableWidth * progress)
             return CGPoint(x: x, y: yPosition(for: value))
         }
+    }
+
+    func nearestIndex(for x: CGFloat) -> Int? {
+        let pts = points
+        guard !pts.isEmpty else { return nil }
+        var bestIndex = 0
+        var bestDist = abs(pts[0].x - x)
+        for i in 1..<pts.count {
+            let dist = abs(pts[i].x - x)
+            if dist < bestDist {
+                bestDist = dist
+                bestIndex = i
+            }
+        }
+        return bestIndex
     }
 
     var linePath: Path {
@@ -431,7 +594,30 @@ private struct EarnPreviewHost: View {
                     price: "2918.18",
                     apy: "0.058"
                 )
-            ]
+            ],
+            idleAssets: [
+                EarnPosition(
+                    id: 3,
+                    source: "okx",
+                    asset: "BTC",
+                    assetType: "crypto",
+                    amount: "0.5",
+                    usdValue: "32500.00",
+                    price: "65000.00",
+                    apy: "0"
+                ),
+                EarnPosition(
+                    id: 4,
+                    source: "bybit",
+                    asset: "USDT",
+                    assetType: "crypto",
+                    amount: "5200.00",
+                    usdValue: "5200.00",
+                    price: "1.00",
+                    apy: "0"
+                )
+            ],
+            idleTotalUsdValue: "37700.00"
         )
         viewModel.history = previewHistory
 

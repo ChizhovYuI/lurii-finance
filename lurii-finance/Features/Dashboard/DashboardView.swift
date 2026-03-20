@@ -89,11 +89,15 @@ struct DashboardView: View {
                 .frame(minHeight: 174)
             DashboardYieldSnapshotCard(summary: viewModel.earnSummary)
                 .frame(minHeight: 174)
+            DashboardIdleAssetsCard(summary: viewModel.earnSummary)
+                .frame(minHeight: 174)
             DashboardRiskHealthCard(
                 allocation: viewModel.allocation,
                 warnings: dashboardWarnings
             )
             .frame(minHeight: 174)
+            DashboardTransactionCard(analytics: viewModel.txAnalytics)
+                .frame(minHeight: 174)
         }
     }
 
@@ -299,7 +303,30 @@ private struct DashboardPreviewHost: View {
                     price: "2918.18",
                     apy: "0.058"
                 )
-            ]
+            ],
+            idleAssets: [
+                EarnPosition(
+                    id: 3,
+                    source: "okx",
+                    asset: "BTC",
+                    assetType: "crypto",
+                    amount: "0.5",
+                    usdValue: "32500.00",
+                    price: "65000.00",
+                    apy: "0"
+                ),
+                EarnPosition(
+                    id: 4,
+                    source: "bybit",
+                    asset: "USDT",
+                    assetType: "crypto",
+                    amount: "5200.00",
+                    usdValue: "5200.00",
+                    price: "1.00",
+                    apy: "0"
+                )
+            ],
+            idleTotalUsdValue: "37700.00"
         )
         return DashboardView(viewModel: viewModel)
             .environmentObject(appState)
@@ -515,6 +542,78 @@ private struct DashboardYieldSnapshotCard: View {
                         Text("Weighted average APY across yield positions")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct DashboardIdleAssetsCard: View {
+    @EnvironmentObject private var appState: AppState
+
+    let summary: EarnSummaryResponse?
+
+    private var idleCount: Int {
+        summary?.idleAssets?.count ?? 0
+    }
+
+    private var idleTotalText: String {
+        ValueFormatters.currency(from: summary?.idleTotalUsdValue, code: "usd") ?? "—"
+    }
+
+    private var topIdleAssets: [EarnPosition] {
+        Array((summary?.idleAssets ?? []).prefix(3))
+    }
+
+    var body: some View {
+        Button {
+            appState.selectedSection = .earn
+        } label: {
+            DashboardCardShell {
+                HStack(alignment: .top, spacing: 12) {
+                    DashboardCardHeader(title: "Idle Assets", systemImage: "exclamationmark.triangle")
+                    Spacer(minLength: 0)
+                    if idleCount > 0 {
+                        DashboardStatusBadge(
+                            title: "\(idleCount) idle",
+                            systemImage: "moon.zzz",
+                            tint: DesignTokens.warning
+                        )
+                    }
+                }
+
+                if idleCount == 0 {
+                    DashboardUnavailableMessage("All crypto and stablecoins are earning yield.")
+                } else {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(appState.hideBalance ? "••••" : idleTotalText)
+                            .font(DesignTokens.titleFont)
+                            .foregroundStyle(.primary)
+
+                        Text("Crypto not earning yield")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            ForEach(topIdleAssets) { asset in
+                                HStack {
+                                    Text(asset.asset)
+                                        .font(.subheadline)
+                                        .lineLimit(1)
+                                    Spacer(minLength: 8)
+                                    Text(appState.hideBalance ? "••••" : (ValueFormatters.currency(from: asset.usdValue, code: "usd") ?? asset.usdValue ?? "—"))
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            if idleCount > 3 {
+                                Text("and \(idleCount - 3) more...")
+                                    .font(.caption)
+                                    .foregroundStyle(.tertiary)
+                            }
+                        }
                     }
                 }
             }
@@ -948,8 +1047,89 @@ private enum DashboardMetricTone {
     }
 }
 
+private struct DashboardTransactionCard: View {
+    @EnvironmentObject private var appState: AppState
+
+    let analytics: TransactionAnalyticsSummary?
+
+    private var topSpending: [CategoryBreakdownRow] {
+        Array((analytics?.spendingByCategory ?? []).prefix(3))
+    }
+
+    private var totalSpendingText: String {
+        ValueFormatters.currency(from: analytics?.totalSpending, code: "usd") ?? "—"
+    }
+
+    private var totalIncomeText: String {
+        ValueFormatters.currency(from: analytics?.totalIncome, code: "usd") ?? "—"
+    }
+
+    var body: some View {
+        Button {
+            appState.selectedSection = .transactions
+        } label: {
+            DashboardCardShell {
+                HStack(alignment: .top, spacing: 12) {
+                    DashboardCardHeader(title: "Transactions", systemImage: "list.bullet.rectangle")
+                    Spacer(minLength: 0)
+                    Image(systemName: "arrow.up.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+
+                if analytics == nil {
+                    DashboardUnavailableMessage("Transaction analytics are not available yet. Run categorization first.")
+                } else {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 16) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Spending")
+                                    .font(DesignTokens.captionFont)
+                                    .foregroundStyle(.secondary)
+                                Text(appState.hideBalance ? "••••" : totalSpendingText)
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(DesignTokens.error)
+                            }
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Income")
+                                    .font(DesignTokens.captionFont)
+                                    .foregroundStyle(.secondary)
+                                Text(appState.hideBalance ? "••••" : totalIncomeText)
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(DesignTokens.success)
+                            }
+                        }
+
+                        if !topSpending.isEmpty {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Top expenses")
+                                    .font(DesignTokens.captionFont)
+                                    .foregroundStyle(.secondary)
+                                ForEach(topSpending) { row in
+                                    HStack {
+                                        Text(row.displayName)
+                                            .font(.subheadline)
+                                            .lineLimit(1)
+                                        Spacer(minLength: 8)
+                                        Text(appState.hideBalance ? "••••" : (ValueFormatters.currency(from: row.usdValue, code: "usd") ?? row.usdValue))
+                                            .font(.caption.weight(.semibold))
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .buttonStyle(.plain)
+    }
+}
+
 private struct DashboardNetWorthSparkline: View {
     let history: [NetWorthHistoryPoint]
+
+    @State private var hoverIndex: Int?
 
     private var values: [Double] {
         history.compactMap { Double($0.usdValue) }
@@ -958,8 +1138,9 @@ private struct DashboardNetWorthSparkline: View {
     var body: some View {
         GeometryReader { geometry in
             let sparkline = DashboardSparklineMetrics(values: values, size: geometry.size)
+            let pts = sparkline.points
 
-            ZStack {
+            ZStack(alignment: .topLeading) {
                 sparkline.areaPath
                     .fill(
                         LinearGradient(
@@ -977,8 +1158,56 @@ private struct DashboardNetWorthSparkline: View {
                         Color.accentColor.opacity(0.9),
                         style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round)
                     )
+
+                if let idx = hoverIndex, idx < pts.count, idx < history.count {
+                    let pt = pts[idx]
+
+                    // Vertical indicator line.
+                    Path { path in
+                        path.move(to: CGPoint(x: pt.x, y: 0))
+                        path.addLine(to: CGPoint(x: pt.x, y: geometry.size.height))
+                    }
+                    .stroke(Color.accentColor.opacity(0.3), style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+
+                    // Dot on the line.
+                    Circle()
+                        .fill(Color.accentColor)
+                        .frame(width: 6, height: 6)
+                        .position(pt)
+
+                    // Value tooltip.
+                    let dateStr = history[idx].date
+                    let valStr = ValueFormatters.currency(from: history[idx].usdValue, code: "usd") ?? history[idx].usdValue
+                    let isRightHalf = pt.x > geometry.size.width / 2
+
+                    VStack(alignment: isRightHalf ? .trailing : .leading, spacing: 1) {
+                        Text(dateStr)
+                            .font(.system(size: 9, weight: .medium, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                        Text(valStr)
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.primary)
+                    }
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 4))
+                    .position(
+                        x: isRightHalf ? pt.x - 44 : pt.x + 44,
+                        y: max(16, min(pt.y, geometry.size.height - 16))
+                    )
+                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .onContinuousHover { phase in
+                switch phase {
+                case .active(let location):
+                    hoverIndex = sparkline.nearestIndex(for: location.x)
+                case .ended:
+                    hoverIndex = nil
+                @unknown default:
+                    hoverIndex = nil
+                }
+            }
         }
     }
 }
@@ -1017,7 +1246,7 @@ private struct DashboardSparklineMetrics {
         return min(max(normalizedY, verticalInset), baseline)
     }
 
-    private var points: [CGPoint] {
+    var points: [CGPoint] {
         guard values.count > 1, size.width > 0, size.height > 0 else { return [] }
 
         let usableWidth = max(size.width - (horizontalInset * 2), 1)
@@ -1027,6 +1256,21 @@ private struct DashboardSparklineMetrics {
             let x = horizontalInset + (usableWidth * progress)
             return CGPoint(x: x, y: yPosition(for: value))
         }
+    }
+
+    func nearestIndex(for x: CGFloat) -> Int? {
+        let pts = points
+        guard !pts.isEmpty else { return nil }
+        var bestIndex = 0
+        var bestDist = abs(pts[0].x - x)
+        for i in 1..<pts.count {
+            let dist = abs(pts[i].x - x)
+            if dist < bestDist {
+                bestDist = dist
+                bestIndex = i
+            }
+        }
+        return bestIndex
     }
 
     var linePath: Path {
