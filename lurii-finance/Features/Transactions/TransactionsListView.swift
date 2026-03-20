@@ -485,6 +485,17 @@ struct TransactionsListView: View {
                     Image(systemName: "arrow.left.arrow.right")
                         .font(.system(size: 10))
                         .foregroundStyle(.blue)
+                    if isHovered {
+                        Button {
+                            viewModel.unlinkTransfer(txId: tx.id)
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 10))
+                                .foregroundStyle(.red.opacity(0.7))
+                        }
+                        .buttonStyle(.plain)
+                        .help("Unlink transfer")
+                    }
                 }
                 Text(viewModel.categoryDisplayName(for: tx.metadata?.category))
                     .font(.system(size: 11))

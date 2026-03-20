@@ -237,16 +237,22 @@ final class TransactionsViewModel: ObservableObject {
         Task {
             do {
                 try await APIClient.shared.linkTransfer(txIdA: txIdA, txIdB: txIdB)
-                self.load(
-                    sourceName: currentSourceName,
-                    txType: currentTxType,
-                    category: currentCategory,
-                    search: currentSearch
-                )
-            } catch {
-                // Silently fail.
-            }
+                reloadCurrentMonth()
+            } catch {}
         }
+    }
+
+    func unlinkTransfer(txId: Int) {
+        Task {
+            do {
+                try await APIClient.shared.unlinkTransfer(id: txId)
+                reloadCurrentMonth()
+            } catch {}
+        }
+    }
+
+    private func reloadCurrentMonth() {
+        loadMonth(currentMonth)
     }
 
     func createCategory(txType: String, name: String) {
