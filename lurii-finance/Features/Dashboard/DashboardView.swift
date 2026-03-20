@@ -129,7 +129,7 @@ struct DashboardView: View {
 @MainActor
 private struct DashboardPreviewHost: View {
     private var previewHistory: [NetWorthHistoryPoint] {
-        let values = [
+        let values: [String] = [
             "68200", "68450", "68120", "68900", "69150", "69500", "69840", "70120", "69980", "70310",
             "70650", "70820", "71140", "70990", "71330", "71520", "71780", "71910", "72150", "72340",
             "72480", "72610", "72890", "73120", "73380", "73640", "73920", "74260", "71500", "71850"
