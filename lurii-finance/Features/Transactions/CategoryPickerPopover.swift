@@ -153,7 +153,6 @@ struct CategoryPickerPopover: View {
             }
             .frame(minWidth: 200, idealWidth: 280)
         }
-        .presentationSizing(.fitted)
         .frame(minWidth: 400, maxWidth: 600, minHeight: 120, maxHeight: 600)
         .task { await loadDetail() }
     }

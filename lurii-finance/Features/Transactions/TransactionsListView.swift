@@ -443,10 +443,10 @@ struct TransactionsListView: View {
             .onTapGesture {
                 typePickerTxId = isPickerOpen ? nil : tx.id
             }
-            .sheet(isPresented: Binding(
+            .popover(isPresented: Binding(
                 get: { typePickerTxId == tx.id },
                 set: { if !$0 { typePickerTxId = nil } }
-            )) {
+            ), arrowEdge: .bottom) {
                 TransactionEditPopover(
                     tx: tx,
                     types: txTypes.filter { $0 != "all" },
@@ -523,10 +523,10 @@ struct TransactionsListView: View {
         .onTapGesture {
             categoryPickerTxId = isPickerOpen ? nil : tx.id
         }
-        .sheet(isPresented: Binding(
+        .popover(isPresented: Binding(
             get: { categoryPickerTxId == tx.id },
             set: { if !$0 { categoryPickerTxId = nil } }
-        )) {
+        ), arrowEdge: .trailing) {
             CategoryPickerPopover(
                 tx: tx,
                 categories: viewModel.categoriesForType(tx.resolvedType),
@@ -632,7 +632,6 @@ private struct TransactionEditPopover: View {
             }
             .frame(minWidth: 200, idealWidth: 280)
         }
-        .presentationSizing(.fitted)
         .frame(minWidth: 400, maxWidth: 600, minHeight: 120, maxHeight: 600)
         .task { await loadDetail() }
     }
