@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct DashboardView: View {
     @EnvironmentObject private var appState: AppState
@@ -1153,18 +1154,7 @@ private struct DashboardStatementDropCard: View {
         .onDrop(of: [.commaSeparatedText, .fileURL], isTargeted: $isTargeted) { providers in
             Task {
                 for provider in providers {
-                    guard let item = try? await provider.loadItem(forTypeIdentifier: "public.file-url") as? URL
-                            ?? provider.loadItem(forTypeIdentifier: "public.file-url") as? Data
-                    else { continue }
-                    let url: URL
-                    if let directURL = item as? URL {
-                        url = directURL
-                    } else if let data = item as? Data, let str = String(data: data, encoding: .utf8) {
-                        guard let parsed = URL(string: str) else { continue }
-                        url = parsed
-                    } else {
-                        continue
-                    }
+                    guard let url = await Self.resolveFileURL(from: provider) else { continue }
                     guard url.startAccessingSecurityScopedResource() else { continue }
                     defer { url.stopAccessingSecurityScopedResource() }
                     guard let data = try? Data(contentsOf: url) else { continue }
@@ -1176,6 +1166,20 @@ private struct DashboardStatementDropCard: View {
             }
             return true
         }
+    }
+}
+
+extension DashboardStatementDropCard {
+    @MainActor
+    static func resolveFileURL(from provider: NSItemProvider) async -> URL? {
+        let item = try? await provider.loadItem(forTypeIdentifier: "public.file-url")
+        if let url = item as? URL {
+            return url
+        }
+        if let data = item as? Data, let str = String(data: data, encoding: .utf8) {
+            return URL(string: str)
+        }
+        return nil
     }
 }
 
