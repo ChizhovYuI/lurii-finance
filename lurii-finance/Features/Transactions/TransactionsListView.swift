@@ -13,6 +13,7 @@ struct TransactionsListView: View {
     }
     @AppStorage("transactions.searchQuery") private var searchQuery = ""
     @AppStorage("transactions.selectedType") private var selectedType = "all"
+    @AppStorage("transactions.selectedCategory") private var selectedCategory = "all"
     @State private var selectedTransaction: TransactionDTO?
     @State private var categoryPickerTxId: Int?
     @State private var typePickerTxId: Int?
@@ -65,6 +66,9 @@ struct TransactionsListView: View {
         .toolbar {
             ToolbarItem(placement: .automatic) {
                 txTypeMenu
+            }
+            ToolbarItem(placement: .automatic) {
+                categoryMenu
             }
             ToolbarItem(placement: .automatic) {
                 searchField
@@ -146,13 +150,13 @@ struct TransactionsListView: View {
 
     private var pageControls: some View {
         HStack(spacing: 6) {
-            Button { viewModel.goPreviousPage() } label: {
+            Button { viewModel.goNextPage() } label: {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 12, weight: .semibold))
             }
             .buttonStyle(.glass)
             .buttonBorderShape(.circle)
-            .disabled(!viewModel.hasPreviousPage || viewModel.isLoading)
+            .disabled(!viewModel.hasNextPage || viewModel.isLoading)
 
             if let label = viewModel.windowLabel {
                 Text(label)
@@ -161,13 +165,13 @@ struct TransactionsListView: View {
                     .lineLimit(1)
             }
 
-            Button { viewModel.goNextPage() } label: {
+            Button { viewModel.goPreviousPage() } label: {
                 Image(systemName: "chevron.right")
                     .font(.system(size: 12, weight: .semibold))
             }
             .buttonStyle(.glass)
             .buttonBorderShape(.circle)
-            .disabled(!viewModel.hasNextPage || viewModel.isLoading)
+            .disabled(!viewModel.hasPreviousPage || viewModel.isLoading)
         }
     }
 
@@ -176,6 +180,7 @@ struct TransactionsListView: View {
             ForEach(txTypes, id: \.self) { type in
                 Button {
                     selectedType = type
+                    selectedCategory = "all"
                     reload()
                 } label: {
                     if type == selectedType {
@@ -190,6 +195,49 @@ struct TransactionsListView: View {
                 Image(systemName: "line.3.horizontal.decrease")
                 Text(selectedType == "all" ? "All" : selectedType.capitalized)
                     .font(.subheadline)
+            }
+        }
+        .buttonStyle(.glass)
+        .buttonBorderShape(.capsule)
+    }
+
+    private var filteredCategories: [TransactionCategoryDTO] {
+        if selectedType == "all" {
+            return viewModel.categories
+        }
+        return viewModel.categoriesForType(selectedType)
+    }
+
+    private var categoryMenu: some View {
+        Menu {
+            Button {
+                selectedCategory = "all"
+                reload()
+            } label: {
+                if selectedCategory == "all" {
+                    Label("All Categories", systemImage: "checkmark")
+                } else {
+                    Text("All Categories")
+                }
+            }
+            ForEach(filteredCategories, id: \.category) { cat in
+                Button {
+                    selectedCategory = cat.category
+                    reload()
+                } label: {
+                    if cat.category == selectedCategory {
+                        Label(cat.displayName, systemImage: "checkmark")
+                    } else {
+                        Text(cat.displayName)
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "tag")
+                Text(selectedCategory == "all" ? "Category" : viewModel.categoryDisplayName(for: selectedCategory))
+                    .font(.subheadline)
+                    .lineLimit(1)
             }
         }
         .buttonStyle(.glass)
@@ -406,6 +454,7 @@ struct TransactionsListView: View {
                     onSelect: { newType in
                         viewModel.setType(txId: tx.id, type: newType)
                         typePickerTxId = nil
+                        categoryPickerTxId = tx.id
                     }
                 )
             }
@@ -495,7 +544,7 @@ struct TransactionsListView: View {
         viewModel.load(
             sourceName: nil,
             txType: selectedType == "all" ? nil : selectedType,
-            category: nil,
+            category: selectedCategory == "all" ? nil : selectedCategory,
             search: searchQuery.isEmpty ? nil : searchQuery
         )
     }
