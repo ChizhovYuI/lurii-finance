@@ -236,14 +236,12 @@ struct APIClient {
 
     // MARK: - Transactions
 
-    func getTransactions(sourceName: String? = nil, txType: String? = nil, category: String? = nil, search: String? = nil, days: Int = 7, end: String? = nil) async throws -> TransactionsListResponse {
-        var queryItems = [
-            URLQueryItem(name: "days", value: String(days))
-        ]
+    func getTransactions(sourceName: String? = nil, txType: String? = nil, category: String? = nil, search: String? = nil, month: String? = nil) async throws -> TransactionsListResponse {
+        var queryItems: [URLQueryItem] = []
+        if let month { queryItems.append(URLQueryItem(name: "month", value: month)) }
         if let sourceName { queryItems.append(URLQueryItem(name: "source_name", value: sourceName)) }
         if let txType { queryItems.append(URLQueryItem(name: "tx_type", value: txType)) }
         if let category { queryItems.append(URLQueryItem(name: "category", value: category)) }
-        if let end { queryItems.append(URLQueryItem(name: "end", value: end)) }
         if let search { queryItems.append(URLQueryItem(name: "search", value: search)) }
         let url = APIEndpoints.url(path: APIEndpoints.transactions, queryItems: queryItems)
         return try await request(url: url, method: "GET")

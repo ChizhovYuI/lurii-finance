@@ -11,20 +11,19 @@ final class TransactionsViewModel: ObservableObject {
     @Published var isCategorizing = false
     @Published var categorizationMessage: String?
 
-    /// Current page (0-indexed). Each page is a 7-day window.
-    @Published var currentPage = 0
-    /// Window label for the current page (e.g. "Jun 10 – Jun 17").
+    /// Current month being displayed (e.g. "2026-03").
+    @Published var currentMonth: String?
+    /// Display label for the current month (e.g. "Mar 2026").
     @Published var windowLabel: String?
-    /// Whether a next (older) page exists.
+    /// Whether an older month exists.
     @Published var hasNextPage = false
-
-    var hasPreviousPage: Bool { currentPage > 0 }
+    /// Whether a newer month exists (not the current month).
+    @Published var hasPreviousPage = false
 
     private var loadTask: Task<Void, Never>?
     private var loadSequence = 0
-    /// Stack of `end` cursors: index N holds the cursor for page N.
-    /// Page 0 has no cursor (nil).
-    private var pageCursors: [String?] = [nil]
+    /// History of visited months for back navigation.
+    private var monthHistory: [String] = []
 
     /// Tracks current filter params so page navigation can reuse them.
     private var currentSourceName: String?
@@ -34,7 +33,7 @@ final class TransactionsViewModel: ObservableObject {
 
     nonisolated init() {}
 
-    /// Loads the first page (replaces existing data, resets pagination).
+    /// Loads the current month (replaces existing data, resets navigation).
     func load(
         sourceName: String? = nil,
         txType: String? = nil,
@@ -45,34 +44,35 @@ final class TransactionsViewModel: ObservableObject {
         currentTxType = txType
         currentCategory = category
         currentSearch = search
-        currentPage = 0
-        pageCursors = [nil]
+        monthHistory = []
 
-        loadPage(0)
+        loadMonth(nil)
     }
 
-    /// Navigate to the next (older) page.
+    /// Navigate to the next (older) month.
     func goNextPage() {
         guard hasNextPage else { return }
-        loadPage(currentPage + 1)
+        if let current = currentMonth {
+            monthHistory.append(current)
+        }
+        loadMonth(nextMonthCursor)
     }
 
-    /// Navigate to the previous (newer) page.
+    /// Navigate to the previous (newer) month.
     func goPreviousPage() {
-        guard hasPreviousPage else { return }
-        loadPage(currentPage - 1)
+        guard hasPreviousPage, let prev = monthHistory.popLast() else { return }
+        loadMonth(prev)
     }
 
-    private func loadPage(_ page: Int) {
+    private var nextMonthCursor: String?
+
+    private func loadMonth(_ month: String?) {
         loadTask?.cancel()
         loadSequence += 1
         let sequence = loadSequence
 
-        currentPage = page
         isLoading = true
         errorMessage = nil
-
-        let cursor = page < pageCursors.count ? pageCursors[page] : nil
 
         loadTask = Task {
             defer {
@@ -87,7 +87,7 @@ final class TransactionsViewModel: ObservableObject {
                     txType: currentTxType,
                     category: currentCategory,
                     search: currentSearch,
-                    end: cursor
+                    month: month
                 )
                 async let catTask = APIClient.shared.getTransactionCategories()
 
@@ -98,18 +98,11 @@ final class TransactionsViewModel: ObservableObject {
 
                 self.transactions = response.items
                 self.total = response.total
-                self.hasNextPage = response.nextEndDate != nil
-                self.windowLabel = Self.formatWindowLabel(start: response.windowStart, end: response.windowEnd)
-
-                // Store cursor for the next page.
-                if let next = response.nextEndDate {
-                    let nextPage = page + 1
-                    if nextPage < self.pageCursors.count {
-                        self.pageCursors[nextPage] = next
-                    } else {
-                        self.pageCursors.append(next)
-                    }
-                }
+                self.currentMonth = response.month
+                self.hasNextPage = response.nextMonth != nil
+                self.hasPreviousPage = !self.monthHistory.isEmpty
+                self.nextMonthCursor = response.nextMonth
+                self.windowLabel = Self.formatMonthLabel(response.month)
 
                 if let cats {
                     self.categories = cats
@@ -123,15 +116,15 @@ final class TransactionsViewModel: ObservableObject {
         }
     }
 
-    private static func formatWindowLabel(start: String?, end: String?) -> String? {
-        guard let start, let end else { return nil }
+    private static func formatMonthLabel(_ month: String?) -> String? {
+        guard let month else { return nil }
         let isoFmt = DateFormatter()
-        isoFmt.dateFormat = "yyyy-MM-dd"
-        guard let startDate = isoFmt.date(from: String(start.prefix(10))),
-              let endDate = isoFmt.date(from: String(end.prefix(10))) else { return nil }
+        isoFmt.dateFormat = "yyyy-MM"
+        isoFmt.locale = Locale(identifier: "en_US_POSIX")
+        guard let date = isoFmt.date(from: month) else { return nil }
         let displayFmt = DateFormatter()
-        displayFmt.dateFormat = "MMM d"
-        return "\(displayFmt.string(from: startDate)) – \(displayFmt.string(from: endDate))"
+        displayFmt.dateFormat = "MMMM yyyy"
+        return displayFmt.string(from: date)
     }
 
     func runCategorization() {
@@ -205,13 +198,13 @@ final class TransactionsViewModel: ObservableObject {
     }
 
     func setType(txId: Int, type: String) {
-        // Optimistic UI update.
+        // Optimistic UI update — clear category since it's type-specific.
         if let idx = transactions.firstIndex(where: { $0.id == txId }) {
             let old = transactions[idx]
             let updatedMeta = TransactionMetadataDTO(
-                category: old.metadata?.category,
-                categorySource: old.metadata?.categorySource,
-                categoryConfidence: old.metadata?.categoryConfidence,
+                category: nil,
+                categorySource: nil,
+                categoryConfidence: nil,
                 typeOverride: type,
                 isInternalTransfer: old.metadata?.isInternalTransfer,
                 transferPairId: old.metadata?.transferPairId,
