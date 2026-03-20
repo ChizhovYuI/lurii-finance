@@ -12,7 +12,7 @@ This is a macOS SwiftUI app built with Xcode. Use the MCP xcode-tools for all op
 - **Preview rendering**: `RenderPreview` MCP tool to verify UI changes
 - **Code snippets**: `ExecuteSnippet` to test logic in context of a file
 
-Use `context7` MCP to look up latest Apple framework documentation (SwiftUI, Foundation, etc.) when implementing new features.
+Use `context7` MCP plugin (if available) or `DocumentationSearch` xcode-tools MCP to look up latest Apple framework documentation when implementing new features.
 
 ## Architecture
 
