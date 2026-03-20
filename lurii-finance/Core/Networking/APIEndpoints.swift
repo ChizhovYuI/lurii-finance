@@ -60,6 +60,7 @@ enum APIEndpoints {
 
     static let ws = "/api/v1/ws"
 
+    static let statementUpload = "/api/v1/statement/upload"
     static let transactions = "/api/v1/transactions"
     static func transactionDetail(_ id: Int) -> String { "/api/v1/transactions/\(id)" }
     static func transactionMetadata(_ id: Int) -> String { "/api/v1/transactions/\(id)/metadata" }

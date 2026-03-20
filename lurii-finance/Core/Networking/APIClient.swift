@@ -302,6 +302,22 @@ struct APIClient {
         try await request(path: APIEndpoints.transactionCategorize, method: "POST")
     }
 
+    func uploadStatement(fileData: Data, filename: String = "statement.csv") async throws -> StatementUploadResponse {
+        let url = APIEndpoints.url(path: APIEndpoints.statementUpload)
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("text/csv", forHTTPHeaderField: "Content-Type")
+        request.httpBody = fileData
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw URLError(.badServerResponse)
+        }
+        guard (200...299).contains(httpResponse.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+        return try JSONDecoder().decode(StatementUploadResponse.self, from: data)
+    }
+
     func getTransferCandidates(id: Int, source: String? = nil) async throws -> TransferCandidatesResponse {
         var queryItems: [URLQueryItem] = []
         if let source { queryItems.append(URLQueryItem(name: "source", value: source)) }

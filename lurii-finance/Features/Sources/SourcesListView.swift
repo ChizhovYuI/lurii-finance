@@ -9,6 +9,9 @@ struct SourcesListView: View {
     @State private var isDeletingSource = false
     @State private var deleteErrorMessage: String?
     @State private var filter = ""
+    @State private var showingCSVPicker = false
+    @State private var uploadTargetSource: String?
+    @State private var uploadMessage: String?
     @Namespace private var sourcesNamespace
 
     private let controlSize: CGFloat = 24
@@ -53,9 +56,10 @@ struct SourcesListView: View {
                 }
 
                 content
+                    .fixedSize(horizontal: true, vertical: false)
+                    .frame(maxWidth: .infinity)
             }
-            .padding(.leading, DesignTokens.pageContentPadding)
-            .padding(.trailing, DesignTokens.pageContentTrailingPadding)
+            .padding(.horizontal, DesignTokens.pageContentPadding)
             .padding(.top, DesignTokens.pageContentPadding)
             .padding(.bottom, DesignTokens.pageContentPadding)
         }
@@ -120,6 +124,33 @@ struct SourcesListView: View {
                 """
             )
         }
+        .fileImporter(
+            isPresented: $showingCSVPicker,
+            allowedContentTypes: [.commaSeparatedText],
+            allowsMultipleSelection: true
+        ) { result in
+            Task { await handleCSVImport(result) }
+        }
+    }
+
+    private func handleCSVImport(_ result: Result<[URL], Error>) async {
+        guard case let .success(urls) = result else { return }
+        var totalImported = 0
+        var totalSkipped = 0
+        for url in urls {
+            guard url.startAccessingSecurityScopedResource() else { continue }
+            defer { url.stopAccessingSecurityScopedResource() }
+            guard let data = try? Data(contentsOf: url) else { continue }
+            do {
+                let response = try await APIClient.shared.uploadStatement(fileData: data, filename: url.lastPathComponent)
+                totalImported += response.imported
+                totalSkipped += response.skipped
+            } catch {
+                uploadMessage = "Upload failed: \(error.localizedDescription)"
+                return
+            }
+        }
+        uploadMessage = "Imported \(totalImported), skipped \(totalSkipped)"
     }
 
     private var content: some View {
@@ -237,6 +268,33 @@ struct SourcesListView: View {
         .onTapGesture {
             selectedSource = source
         }
+        .onDrop(of: [.commaSeparatedText, .fileURL], isTargeted: nil) { providers in
+            guard source.type == "wise" else { return false }
+            Task {
+                for provider in providers {
+                    guard let item = try? await provider.loadItem(forTypeIdentifier: "public.file-url") as? URL
+                            ?? provider.loadItem(forTypeIdentifier: "public.file-url") as? Data
+                    else { continue }
+                    let url: URL
+                    if let directURL = item as? URL {
+                        url = directURL
+                    } else if let data = item as? Data, let str = String(data: data, encoding: .utf8) {
+                        guard let parsed = URL(string: str) else { continue }
+                        url = parsed
+                    } else {
+                        continue
+                    }
+                    guard url.startAccessingSecurityScopedResource() else { continue }
+                    defer { url.stopAccessingSecurityScopedResource() }
+                    guard let data = try? Data(contentsOf: url) else { continue }
+                    let response = try? await APIClient.shared.uploadStatement(fileData: data)
+                    if let response {
+                        uploadMessage = "Imported \(response.imported), skipped \(response.skipped)"
+                    }
+                }
+            }
+            return true
+        }
     }
 
     private func quickConnectProviderRow(_ provider: WebSyncProvider) -> some View {
@@ -277,16 +335,30 @@ struct SourcesListView: View {
         .padding(.vertical, 12)
     }
 
+    @ViewBuilder
     private func sourceSyncButton(_ source: SourceDTO) -> some View {
-        Button(appState.collecting ? "Syncing..." : "Sync now") {
-            Task {
-                _ = try? await APIClient.shared.startCollect(source: source.name)
+        HStack(spacing: 8) {
+            Button(appState.collecting ? "Syncing..." : "Sync now") {
+                Task {
+                    _ = try? await APIClient.shared.startCollect(source: source.name)
+                }
+            }
+            .buttonStyle(.glass)
+            .buttonBorderShape(.capsule)
+            .controlSize(.small)
+            .disabled(isDeletingSource || appState.collecting || !source.enabled)
+
+            if source.type == "wise" {
+                Button("Upload Statement") {
+                    showingCSVPicker = true
+                    uploadTargetSource = source.name
+                }
+                .buttonStyle(.glass)
+                .buttonBorderShape(.capsule)
+                .controlSize(.small)
+                .disabled(isDeletingSource)
             }
         }
-        .buttonStyle(.glass)
-        .buttonBorderShape(.capsule)
-        .controlSize(.small)
-        .disabled(isDeletingSource || appState.collecting || !source.enabled)
     }
 
     private func sourceWebSyncActions(provider: WebSyncProvider) -> some View {
@@ -400,7 +472,6 @@ struct SourcesListView: View {
     private func sectionEmptyState(_ text: String) -> some View {
         Text(text)
             .foregroundStyle(.secondary)
-            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, DesignTokens.blockPadding)
             .padding(.vertical, 14)
     }
@@ -411,7 +482,6 @@ private struct SourcesSurfaceCard<Content: View>: View {
 
     var body: some View {
         content
-            .frame(maxWidth: .infinity, alignment: .leading)
             .background(.white, in: .rect(cornerRadius: DesignTokens.blockCornerRadius))
             .glassEffect(in: .rect(cornerRadius: DesignTokens.blockCornerRadius))
             .overlay(

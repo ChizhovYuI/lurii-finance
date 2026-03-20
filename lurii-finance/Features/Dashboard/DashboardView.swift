@@ -98,6 +98,8 @@ struct DashboardView: View {
             .frame(minHeight: 174)
             DashboardTransactionCard(analytics: viewModel.txAnalytics)
                 .frame(minHeight: 174)
+            DashboardStatementDropCard()
+                .frame(minHeight: 174)
         }
     }
 
@@ -1123,6 +1125,57 @@ private struct DashboardTransactionCard: View {
             }
         }
         .buttonStyle(.plain)
+    }
+}
+
+private struct DashboardStatementDropCard: View {
+    @State private var isTargeted = false
+    @State private var uploadMessage: String?
+
+    var body: some View {
+        DashboardCardShell {
+            DashboardCardHeader(title: "Import Statement", systemImage: "doc.badge.plus")
+
+            if let uploadMessage {
+                Text(uploadMessage)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            } else {
+                Text("Drop CSV statement here to import")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .overlay(
+            RoundedRectangle(cornerRadius: DesignTokens.blockCornerRadius)
+                .stroke(isTargeted ? Color.accentColor : Color.clear, lineWidth: 2)
+        )
+        .onDrop(of: [.commaSeparatedText, .fileURL], isTargeted: $isTargeted) { providers in
+            Task {
+                for provider in providers {
+                    guard let item = try? await provider.loadItem(forTypeIdentifier: "public.file-url") as? URL
+                            ?? provider.loadItem(forTypeIdentifier: "public.file-url") as? Data
+                    else { continue }
+                    let url: URL
+                    if let directURL = item as? URL {
+                        url = directURL
+                    } else if let data = item as? Data, let str = String(data: data, encoding: .utf8) {
+                        guard let parsed = URL(string: str) else { continue }
+                        url = parsed
+                    } else {
+                        continue
+                    }
+                    guard url.startAccessingSecurityScopedResource() else { continue }
+                    defer { url.stopAccessingSecurityScopedResource() }
+                    guard let data = try? Data(contentsOf: url) else { continue }
+                    let response = try? await APIClient.shared.uploadStatement(fileData: data)
+                    if let response {
+                        uploadMessage = "Imported \(response.imported) from \(response.source)"
+                    }
+                }
+            }
+            return true
+        }
     }
 }
 

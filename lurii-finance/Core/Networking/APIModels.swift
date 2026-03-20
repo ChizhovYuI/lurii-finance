@@ -667,6 +667,13 @@ struct TransferCandidate: Codable, Identifiable {
     let score: Double
 }
 
+struct StatementUploadResponse: Codable {
+    let source: String
+    let imported: Int
+    let skipped: Int
+    let errors: [String]
+}
+
 struct TransactionMetadataUpdateRequest: Codable {
     var category: String?
     var categorySource: String?
