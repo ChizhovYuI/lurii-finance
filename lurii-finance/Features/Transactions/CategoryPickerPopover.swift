@@ -154,8 +154,7 @@ struct CategoryPickerPopover: View {
             }
         }
         .scrollBounceBehavior(.basedOnSize)
-        .frame(idealHeight: min(CGFloat(categories.count) * 30 + 80, 320))
-        .frame(maxHeight: 320)
+        .frame(height: 320)
         .padding(.vertical, 4)
         .task { await loadDetail() }
     }

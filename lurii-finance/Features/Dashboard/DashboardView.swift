@@ -1131,26 +1131,57 @@ private struct DashboardTransactionCard: View {
 
 private struct DashboardStatementDropCard: View {
     @State private var isTargeted = false
+    @State private var showingCSVPicker = false
     @State private var uploadMessage: String?
 
     var body: some View {
         DashboardCardShell {
-            DashboardCardHeader(title: "Import Statement", systemImage: "doc.badge.plus")
+            VStack(spacing: 12) {
+                Image(systemName: "doc.badge.arrow.up")
+                    .font(.system(size: 28, weight: .medium))
+                    .foregroundStyle(.secondary)
 
-            if let uploadMessage {
-                Text(uploadMessage)
-                    .font(.subheadline)
+                Text("Import Statement")
+                    .font(.headline)
+
+                Text("Drop a CSV statement here or use the button to import transactions.")
+                    .font(DesignTokens.captionFont)
                     .foregroundStyle(.secondary)
-            } else {
-                Text("Drop CSV statement here to import")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 300)
+
+                Button {
+                    showingCSVPicker = true
+                } label: {
+                    Label("Choose Files", systemImage: "folder")
+                        .font(.subheadline)
+                }
+                .buttonStyle(.glass)
+                .buttonBorderShape(.capsule)
+
+                if let uploadMessage {
+                    Text(uploadMessage)
+                        .font(DesignTokens.captionFont)
+                        .foregroundStyle(uploadMessage.hasPrefix("Imported") ? DesignTokens.success : DesignTokens.error)
+                }
             }
+            .padding(.vertical, 20)
+            .padding(.horizontal, 24)
+            .frame(maxWidth: .infinity)
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .strokeBorder(style: StrokeStyle(lineWidth: 1.5, dash: [6, 4]))
+                    .foregroundStyle(isTargeted ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.quaternary))
+                    .padding(6)
+            )
         }
-        .overlay(
-            RoundedRectangle(cornerRadius: DesignTokens.blockCornerRadius)
-                .stroke(isTargeted ? Color.accentColor : Color.clear, lineWidth: 2)
-        )
+        .fileImporter(
+            isPresented: $showingCSVPicker,
+            allowedContentTypes: [.commaSeparatedText],
+            allowsMultipleSelection: true
+        ) { result in
+            Task { await handleCSVImport(result) }
+        }
         .onDrop(of: [.commaSeparatedText, .fileURL], isTargeted: $isTargeted) { providers in
             Task {
                 for provider in providers {
@@ -1165,6 +1196,21 @@ private struct DashboardStatementDropCard: View {
                 }
             }
             return true
+        }
+    }
+
+    private func handleCSVImport(_ result: Result<[URL], Error>) async {
+        guard case let .success(urls) = result else { return }
+        for url in urls {
+            guard url.startAccessingSecurityScopedResource() else { continue }
+            defer { url.stopAccessingSecurityScopedResource() }
+            guard let data = try? Data(contentsOf: url) else { continue }
+            do {
+                let response = try await APIClient.shared.uploadStatement(fileData: data, filename: url.lastPathComponent)
+                uploadMessage = "Imported \(response.imported) from \(response.source)"
+            } catch {
+                uploadMessage = "Upload failed: \(error.localizedDescription)"
+            }
         }
     }
 }

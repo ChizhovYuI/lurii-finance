@@ -90,6 +90,31 @@ enum DashboardDateRange: String, CaseIterable, Identifiable {
         }
     }
 
+    /// Returns an ISO date string for the start of this range, given an end date.
+    func startDate(endingOn isoDate: String?) -> String? {
+        guard let isoDate, let endDate = Self.dateFormatter.date(from: isoDate) else { return nil }
+        let calendar = Calendar(identifier: .gregorian)
+        let start: Date?
+        switch self {
+        case .oneWeek:
+            start = calendar.date(byAdding: .day, value: -6, to: endDate)
+        case .monthToDate:
+            start = calendar.date(from: calendar.dateComponents([.year, .month], from: endDate))
+        case .oneMonth:
+            start = calendar.date(byAdding: .day, value: -29, to: endDate)
+        case .threeMonths:
+            start = calendar.date(byAdding: .day, value: -89, to: endDate)
+        case .yearToDate:
+            start = calendar.date(from: DateComponents(year: calendar.component(.year, from: endDate), month: 1, day: 1))
+        case .oneYear:
+            start = calendar.date(byAdding: .day, value: -364, to: endDate)
+        case .all:
+            return nil
+        }
+        guard let start else { return nil }
+        return Self.dateFormatter.string(from: start)
+    }
+
     private static let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.calendar = Calendar(identifier: .gregorian)
@@ -142,10 +167,10 @@ final class DashboardViewModel: ObservableObject {
                 async let allocationTask = APIClient.shared.getAllocation()
                 async let sourceMoversTask = APIClient.shared.getSourceMovers()
                 async let earnSummaryTask = APIClient.shared.getEarnSummary()
-                async let txAnalyticsTask = APIClient.shared.getTransactionAnalyticsSummary()
 
                 let summary = try await summaryTask
                 async let historyTask = APIClient.shared.getPortfolioNetWorthHistory(days: range.historyDays(endingOn: summary.date))
+                async let txAnalyticsTask = APIClient.shared.getTransactionAnalyticsSummary(start: range.startDate(endingOn: summary.date), end: summary.date)
                 let history = try? await historyTask
                 let pnl = try? await pnlTask
                 let allocation = try? await allocationTask
