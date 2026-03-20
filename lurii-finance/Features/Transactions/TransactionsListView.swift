@@ -481,20 +481,32 @@ struct TransactionsListView: View {
                 .font(.system(size: 10))
                 .opacity(isHovered || isPickerOpen ? 1 : 0)
             HStack(spacing: 4) {
-                if tx.metadata?.isInternalTransfer == true {
+                if tx.metadata?.isInternalTransfer == true || tx.group?.type == "internal_transfer" {
                     Image(systemName: "arrow.left.arrow.right")
                         .font(.system(size: 10))
                         .foregroundStyle(.blue)
                     if isHovered {
-                        Button {
-                            viewModel.unlinkTransfer(txId: tx.id)
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.system(size: 10))
-                                .foregroundStyle(.red.opacity(0.7))
+                        if let group = tx.group, group.type == "internal_transfer", let firstChild = group.childIds.first {
+                            Button {
+                                viewModel.unlinkTransfer(txId: firstChild)
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(.red.opacity(0.7))
+                            }
+                            .buttonStyle(.plain)
+                            .help("Unlink transfer")
+                        } else if tx.id > 0 {
+                            Button {
+                                viewModel.unlinkTransfer(txId: tx.id)
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(.red.opacity(0.7))
+                            }
+                            .buttonStyle(.plain)
+                            .help("Unlink transfer")
                         }
-                        .buttonStyle(.plain)
-                        .help("Unlink transfer")
                     }
                 }
                 Text(viewModel.categoryDisplayName(for: tx.metadata?.category))
