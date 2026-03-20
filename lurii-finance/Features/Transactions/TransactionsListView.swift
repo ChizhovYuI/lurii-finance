@@ -447,14 +447,23 @@ struct TransactionsListView: View {
                 get: { typePickerTxId == tx.id },
                 set: { if !$0 { typePickerTxId = nil } }
             ), arrowEdge: .bottom) {
-                TypePickerPopover(
+                TransactionEditPopover(
                     tx: tx,
                     types: txTypes.filter { $0 != "all" },
+                    categories: viewModel.categories,
                     color: txTypeColor,
-                    onSelect: { newType in
+                    onSetType: { newType in
                         viewModel.setType(txId: tx.id, type: newType)
+                    },
+                    onSetCategory: { category in
+                        viewModel.setCategory(txId: tx.id, category: category)
+                    },
+                    onLinkTransfer: { partnerId in
+                        viewModel.linkTransfer(txIdA: tx.id, txIdB: partnerId)
                         typePickerTxId = nil
-                        categoryPickerTxId = tx.id
+                    },
+                    onDone: {
+                        typePickerTxId = nil
                     }
                 )
             }
@@ -550,117 +559,342 @@ struct TransactionsListView: View {
     }
 }
 
-private struct TypePickerPopover: View {
+private struct TransactionEditPopover: View {
     let tx: TransactionDTO
     let types: [String]
+    let categories: [TransactionCategoryDTO]
     let color: (String) -> Color
-    let onSelect: (String) -> Void
+    let onSetType: (String) -> Void
+    let onSetCategory: (String) -> Void
+    let onLinkTransfer: (Int) -> Void
+    let onDone: () -> Void
 
+    private enum Step { case type, category, source, linkTransaction }
+
+    @State private var step: Step = .type
+    @State private var selectedType: String?
+    @State private var transferSources: [String] = []
+    @State private var transferCandidates: [TransferCandidate] = []
+    @State private var isLoadingCandidates = false
     @State private var rawFields: [String: String]?
     @State private var matchedRule: CategoryRuleDTO?
     @State private var isLoadingDetail = false
 
+    private var effectiveType: String { selectedType ?? tx.resolvedType }
+
+    private var filteredCategories: [TransactionCategoryDTO] {
+        categories.filter { $0.txType == effectiveType }
+    }
+
     var body: some View {
         ScrollView {
             HStack(alignment: .top, spacing: 0) {
-                // Left: type list.
-                VStack(alignment: .leading, spacing: 0) {
-                    if let desc = tx.description, !desc.isEmpty {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(desc)
-                                .font(.system(size: 12, weight: .medium))
-                                .lineLimit(2)
-                            Text("\(tx.sourceName) · \(tx.asset)")
-                                .font(.system(size: 11))
-                                .foregroundStyle(.secondary)
-                        }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
+                leftPanel
+                    .frame(width: 200)
 
-                        Divider()
-                    }
-
-                    ForEach(types, id: \.self) { type in
-                        let isSelected = type == tx.resolvedType
-                        Button {
-                            onSelect(type)
-                        } label: {
-                            HStack {
-                                Text(type)
-                                    .font(.system(size: 12))
-                                    .foregroundStyle(color(type))
-                                Spacer()
-                                if isSelected {
-                                    Image(systemName: "checkmark")
-                                        .font(.system(size: 10, weight: .semibold))
-                                        .foregroundStyle(Color.accentColor)
-                                }
-                            }
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .contentShape(Rectangle())
-                            .background(isSelected ? color(type).opacity(0.08) : Color.clear)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .frame(width: 160)
-
-                // Right: raw fields panel.
                 Divider()
 
-                VStack(alignment: .leading, spacing: 0) {
-                    if let matchedRule {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Matched Rule")
-                                .font(.system(size: 10, weight: .semibold))
-                                .foregroundStyle(.secondary)
-                            Text("\(matchedRule.resultCategory) ← \(matchedRule.typeMatch)")
-                                .font(.system(size: 11, design: .monospaced))
-                                .foregroundStyle(.green)
-                        }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-
-                        Divider()
-                    }
-
-                    if isLoadingDetail {
-                        ProgressView()
-                            .frame(maxWidth: .infinity)
-                            .padding(12)
-                    } else if let rawFields, !rawFields.isEmpty {
-                        VStack(alignment: .leading, spacing: 4) {
-                            ForEach(rawFields.sorted(by: { $0.key < $1.key }), id: \.key) { key, value in
-                                VStack(alignment: .leading, spacing: 1) {
-                                    Text(key)
-                                        .font(.system(size: 10, weight: .medium, design: .monospaced))
-                                        .foregroundStyle(.secondary)
-                                    Text(value)
-                                        .font(.system(size: 11, design: .monospaced))
-                                        .lineLimit(2)
-                                        .textSelection(.enabled)
-                                }
-                            }
-                        }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 8)
-                    } else {
-                        Text("No raw fields")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.tertiary)
-                            .frame(maxWidth: .infinity)
-                            .padding(12)
-                    }
-                }
-                .frame(width: 220)
+                rightPanel
+                    .frame(width: 220)
             }
         }
         .scrollBounceBehavior(.basedOnSize)
-        .frame(maxHeight: 320)
+        .frame(maxHeight: 400)
         .padding(.vertical, 4)
         .task { await loadDetail() }
     }
+
+    @ViewBuilder
+    private var leftPanel: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Header with transaction context.
+            if let desc = tx.description, !desc.isEmpty {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(desc)
+                        .font(.system(size: 12, weight: .medium))
+                        .lineLimit(2)
+                    Text("\(tx.sourceName) · \(tx.asset)")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                Divider()
+            }
+
+            // Step indicator.
+            stepHeader
+
+            Divider()
+
+            // Step content.
+            switch step {
+            case .type:
+                typeList
+            case .category:
+                categoryList
+            case .source:
+                sourceList
+            case .linkTransaction:
+                candidateList
+            }
+        }
+    }
+
+    private var stepHeader: some View {
+        HStack(spacing: 6) {
+            if step != .type {
+                Button {
+                    switch step {
+                    case .category: step = .type
+                    case .source: step = .category
+                    case .linkTransaction: step = .source
+                    case .type: break
+                    }
+                } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 10, weight: .semibold))
+                }
+                .buttonStyle(.plain)
+            }
+            Text(stepTitle)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.secondary)
+            Spacer()
+            if step == .source || step == .linkTransaction {
+                Button("Skip") { onDone() }
+                    .font(.system(size: 11))
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+    }
+
+    private var stepTitle: String {
+        switch step {
+        case .type: return "Type"
+        case .category: return "Category"
+        case .source: return "Source"
+        case .linkTransaction: return "Link Transfer"
+        }
+    }
+
+    // MARK: - Step 1: Type
+
+    private var typeList: some View {
+        ForEach(types, id: \.self) { type in
+            let isSelected = type == effectiveType
+            Button {
+                selectedType = type
+                onSetType(type)
+                step = .category
+            } label: {
+                HStack {
+                    Text(type)
+                        .font(.system(size: 12))
+                        .foregroundStyle(color(type))
+                    Spacer()
+                    if isSelected {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(Color.accentColor)
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .contentShape(Rectangle())
+                .background(isSelected ? color(type).opacity(0.08) : Color.clear)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    // MARK: - Step 2: Category
+
+    private var categoryList: some View {
+        Group {
+            if filteredCategories.isEmpty {
+                Text("No categories for \(effectiveType)")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.tertiary)
+                    .padding(12)
+            } else {
+                ForEach(filteredCategories) { cat in
+                    let isSelected = cat.category == tx.metadata?.category
+                    Button {
+                        onSetCategory(cat.category)
+                        if effectiveType == "transfer" || effectiveType == "withdrawal" {
+                            Task { await loadCandidates() }
+                            step = .source
+                        } else {
+                            onDone()
+                        }
+                    } label: {
+                        HStack {
+                            Text(cat.displayName)
+                                .font(.system(size: 12))
+                            Spacer()
+                            if isSelected {
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundStyle(Color.accentColor)
+                            }
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .contentShape(Rectangle())
+                        .background(isSelected ? Color.accentColor.opacity(0.08) : Color.clear)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    // MARK: - Step 3: Source selection
+
+    private var sourceList: some View {
+        Group {
+            if isLoadingCandidates {
+                ProgressView()
+                    .frame(maxWidth: .infinity)
+                    .padding(12)
+            } else if transferSources.isEmpty {
+                VStack(spacing: 8) {
+                    Text("No matching transfers found")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.tertiary)
+                    Button("Done") { onDone() }
+                        .font(.system(size: 12))
+                }
+                .padding(12)
+            } else {
+                ForEach(transferSources, id: \.self) { source in
+                    Button {
+                        let filtered = transferCandidates.filter { $0.sourceName == source }
+                        transferCandidates = filtered
+                        step = .linkTransaction
+                    } label: {
+                        HStack {
+                            if let iconName = source.sourceIconName() {
+                                Image(iconName)
+                                    .resizable()
+                                    .frame(width: 16, height: 16)
+                                    .clipShape(Circle())
+                            }
+                            Text(source)
+                                .font(.system(size: 12))
+                            Spacer()
+                            let count = transferCandidates.filter { $0.sourceName == source }.count
+                            Text("\(count)")
+                                .font(.system(size: 10))
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    // MARK: - Step 4: Link transaction
+
+    private var candidateList: some View {
+        Group {
+            if transferCandidates.isEmpty {
+                VStack(spacing: 8) {
+                    Text("No candidates from this source")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.tertiary)
+                    Button("Done") { onDone() }
+                        .font(.system(size: 12))
+                }
+                .padding(12)
+            } else {
+                ForEach(transferCandidates) { candidate in
+                    Button {
+                        onLinkTransfer(candidate.id)
+                    } label: {
+                        VStack(alignment: .leading, spacing: 2) {
+                            HStack {
+                                Text(candidate.asset)
+                                    .font(.system(size: 12, weight: .medium))
+                                Text(candidate.amount)
+                                    .font(.system(size: 12, design: .monospaced))
+                                Spacer()
+                                Text("$\(candidate.usdValue)")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.secondary)
+                            }
+                            Text(candidate.date)
+                                .font(.system(size: 10))
+                                .foregroundStyle(.tertiary)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    // MARK: - Right panel (raw fields)
+
+    @ViewBuilder
+    private var rightPanel: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if let matchedRule {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Matched Rule")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                    Text("\(matchedRule.resultCategory) ← \(matchedRule.typeMatch)")
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(.green)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                Divider()
+            }
+
+            if isLoadingDetail {
+                ProgressView()
+                    .frame(maxWidth: .infinity)
+                    .padding(12)
+            } else if let rawFields, !rawFields.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(rawFields.sorted(by: { $0.key < $1.key }), id: \.key) { key, value in
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(key)
+                                .font(.system(size: 10, weight: .medium, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                            Text(value)
+                                .font(.system(size: 11, design: .monospaced))
+                                .lineLimit(2)
+                                .textSelection(.enabled)
+                        }
+                    }
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+            } else {
+                Text("No raw fields")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.tertiary)
+                    .frame(maxWidth: .infinity)
+                    .padding(12)
+            }
+        }
+    }
+
+    // MARK: - Data loading
 
     private func loadDetail() async {
         guard tx.id > 0, rawFields == nil, matchedRule == nil else { return }
@@ -669,10 +903,18 @@ private struct TypePickerPopover: View {
             let detail = try await APIClient.shared.getTransaction(id: tx.id)
             rawFields = detail.rawFields
             matchedRule = detail.matchedRule
-        } catch {
-            // Best-effort; popover still works without detail.
-        }
+        } catch {}
         isLoadingDetail = false
+    }
+
+    private func loadCandidates() async {
+        isLoadingCandidates = true
+        do {
+            let response = try await APIClient.shared.getTransferCandidates(id: tx.id)
+            transferSources = response.sources
+            transferCandidates = response.candidates
+        } catch {}
+        isLoadingCandidates = false
     }
 }
 

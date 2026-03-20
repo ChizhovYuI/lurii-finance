@@ -651,6 +651,22 @@ struct TransactionCategoryDTO: Codable, Identifiable {
     let sortOrder: Int
 }
 
+struct TransferCandidatesResponse: Codable {
+    let sources: [String]
+    let candidates: [TransferCandidate]
+}
+
+struct TransferCandidate: Codable, Identifiable {
+    let id: Int
+    let date: String
+    let source: String
+    let sourceName: String
+    let asset: String
+    let amount: String
+    let usdValue: String
+    let score: Double
+}
+
 struct TransactionMetadataUpdateRequest: Codable {
     var category: String?
     var categorySource: String?

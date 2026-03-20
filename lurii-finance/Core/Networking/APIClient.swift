@@ -302,6 +302,13 @@ struct APIClient {
         try await request(path: APIEndpoints.transactionCategorize, method: "POST")
     }
 
+    func getTransferCandidates(id: Int, source: String? = nil) async throws -> TransferCandidatesResponse {
+        var queryItems: [URLQueryItem] = []
+        if let source { queryItems.append(URLQueryItem(name: "source", value: source)) }
+        let url = APIEndpoints.url(path: APIEndpoints.transactionTransferCandidates(id), queryItems: queryItems)
+        return try await request(url: url, method: "GET")
+    }
+
     func linkTransfer(txIdA: Int, txIdB: Int) async throws {
         let body = TransactionLinkRequest(txIdA: txIdA, txIdB: txIdB)
         _ = try await requestVoid(path: APIEndpoints.transactionLinkTransfer, method: "POST", body: body)

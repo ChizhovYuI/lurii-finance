@@ -233,6 +233,22 @@ final class TransactionsViewModel: ObservableObject {
         }
     }
 
+    func linkTransfer(txIdA: Int, txIdB: Int) {
+        Task {
+            do {
+                try await APIClient.shared.linkTransfer(txIdA: txIdA, txIdB: txIdB)
+                self.load(
+                    sourceName: currentSourceName,
+                    txType: currentTxType,
+                    category: currentCategory,
+                    search: currentSearch
+                )
+            } catch {
+                // Silently fail.
+            }
+        }
+    }
+
     func categoriesForType(_ txType: String) -> [TransactionCategoryDTO] {
         categories.filter { $0.txType == txType }
     }
