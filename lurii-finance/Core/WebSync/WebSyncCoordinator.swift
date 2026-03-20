@@ -479,13 +479,6 @@ final class WebSyncCoordinator {
         case .manual:
             return try await requestInteractiveAuthorization(provider: provider, trigger: trigger)
         case .automatic:
-            let now = Date()
-            guard shouldAttemptAutomaticInteractiveAuth(provider: provider, now: now) else {
-                throw WebSyncCoordinatorError.reconnectRequired(
-                    "Reconnect required. Use Connect or Sync now. Auto-open paused until tomorrow."
-                )
-            }
-            markAutomaticInteractiveAuthPrompt(provider: provider, at: now)
             return try await requestInteractiveAuthorization(provider: provider, trigger: trigger)
         }
     }

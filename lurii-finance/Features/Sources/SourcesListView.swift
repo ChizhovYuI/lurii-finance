@@ -210,6 +210,8 @@ struct SourcesListView: View {
             Spacer()
             if let provider = WebSyncProvider(sourceType: source.type) {
                 sourceWebSyncActions(provider: provider)
+            } else {
+                sourceSyncButton(source)
             }
             Toggle("Enabled", isOn: Binding(
                 get: { source.enabled },
@@ -273,6 +275,18 @@ struct SourcesListView: View {
         }
         .padding(.horizontal, DesignTokens.blockPadding)
         .padding(.vertical, 12)
+    }
+
+    private func sourceSyncButton(_ source: SourceDTO) -> some View {
+        Button(appState.collecting ? "Syncing..." : "Sync now") {
+            Task {
+                _ = try? await APIClient.shared.startCollect(source: source.name)
+            }
+        }
+        .buttonStyle(.glass)
+        .buttonBorderShape(.capsule)
+        .controlSize(.small)
+        .disabled(isDeletingSource || appState.collecting || !source.enabled)
     }
 
     private func sourceWebSyncActions(provider: WebSyncProvider) -> some View {
