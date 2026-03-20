@@ -192,7 +192,7 @@ final class TransactionsViewModel: ObservableObject {
                 _ = try await APIClient.shared.setTransactionCategory(id: txId, category: category)
             } catch {
                 // Revert on failure — reload.
-                self.load()
+                self.reloadCurrentMonth()
             }
         }
     }
@@ -228,7 +228,7 @@ final class TransactionsViewModel: ObservableObject {
             do {
                 try await APIClient.shared.setTransactionType(id: txId, type: type)
             } catch {
-                self.load()
+                self.reloadCurrentMonth()
             }
         }
     }
