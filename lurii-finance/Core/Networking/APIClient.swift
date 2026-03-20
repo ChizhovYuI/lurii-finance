@@ -234,6 +234,93 @@ struct APIClient {
         try await request(path: APIEndpoints.reportNotify, method: "POST")
     }
 
+    // MARK: - Transactions
+
+    func getTransactions(sourceName: String? = nil, txType: String? = nil, category: String? = nil, search: String? = nil, days: Int = 7, end: String? = nil) async throws -> TransactionsListResponse {
+        var queryItems = [
+            URLQueryItem(name: "days", value: String(days))
+        ]
+        if let sourceName { queryItems.append(URLQueryItem(name: "source_name", value: sourceName)) }
+        if let txType { queryItems.append(URLQueryItem(name: "tx_type", value: txType)) }
+        if let category { queryItems.append(URLQueryItem(name: "category", value: category)) }
+        if let end { queryItems.append(URLQueryItem(name: "end", value: end)) }
+        if let search { queryItems.append(URLQueryItem(name: "search", value: search)) }
+        let url = APIEndpoints.url(path: APIEndpoints.transactions, queryItems: queryItems)
+        return try await request(url: url, method: "GET")
+    }
+
+    func getTransaction(id: Int) async throws -> TransactionDTO {
+        try await request(path: APIEndpoints.transactionDetail(id), method: "GET")
+    }
+
+    func updateTransactionMetadata(id: Int, body: TransactionMetadataUpdateRequest) async throws {
+        _ = try await requestVoid(path: APIEndpoints.transactionMetadata(id), method: "PUT", body: body)
+    }
+
+    func getTransactionCategories() async throws -> [TransactionCategoryDTO] {
+        try await request(path: APIEndpoints.transactionCategories, method: "GET")
+    }
+
+    func getTransactionReviewQueue(limit: Int = 50) async throws -> TransactionsListResponse {
+        let url = APIEndpoints.url(path: APIEndpoints.transactionReviewQueue, queryItems: [
+            URLQueryItem(name: "limit", value: String(limit))
+        ])
+        return try await request(url: url, method: "GET")
+    }
+
+    func setTransactionCategory(id: Int, category: String) async throws -> SetCategoryResponse {
+        try await request(path: APIEndpoints.transactionCategory(id), method: "PUT", body: SetCategoryRequest(category: category))
+    }
+
+    func setTransactionType(id: Int, type: String) async throws {
+        _ = try await requestVoid(path: APIEndpoints.transactionType(id), method: "PUT", body: SetTypeRequest(type: type))
+    }
+
+    func getCategoryRules(source: String? = nil) async throws -> [CategoryRuleDTO] {
+        var queryItems: [URLQueryItem] = []
+        if let source { queryItems.append(URLQueryItem(name: "source", value: source)) }
+        queryItems.append(URLQueryItem(name: "include_deleted", value: "true"))
+        let url = APIEndpoints.url(path: APIEndpoints.categoryRules, queryItems: queryItems)
+        return try await request(url: url, method: "GET")
+    }
+
+    func createCategoryRule(body: CategoryRuleCreateRequest) async throws -> CategoryRuleDTO {
+        try await request(path: APIEndpoints.categoryRules, method: "POST", body: body)
+    }
+
+    func deleteCategoryRule(id: Int) async throws {
+        _ = try await requestVoid(path: "\(APIEndpoints.categoryRules)/\(id)", method: "DELETE")
+    }
+
+    func previewCategoryRule(body: CategoryRuleCreateRequest) async throws -> RulePreviewResponse {
+        try await request(path: APIEndpoints.categoryRulesPreview, method: "POST", body: body)
+    }
+
+    func resetCategoryRules(source: String?) async throws {
+        _ = try await requestVoid(path: APIEndpoints.categoryRulesReset, method: "POST", body: ResetRulesRequest(source: source))
+    }
+
+    func runCategorization() async throws -> CategorizationResult {
+        try await request(path: APIEndpoints.transactionCategorize, method: "POST")
+    }
+
+    func linkTransfer(txIdA: Int, txIdB: Int) async throws {
+        let body = TransactionLinkRequest(txIdA: txIdA, txIdB: txIdB)
+        _ = try await requestVoid(path: APIEndpoints.transactionLinkTransfer, method: "POST", body: body)
+    }
+
+    func unlinkTransfer(id: Int) async throws {
+        _ = try await requestVoid(path: APIEndpoints.transactionUnlink(id), method: "DELETE")
+    }
+
+    func getTransactionAnalyticsSummary(start: String? = nil, end: String? = nil) async throws -> TransactionAnalyticsSummary {
+        var queryItems: [URLQueryItem] = []
+        if let start { queryItems.append(URLQueryItem(name: "start", value: start)) }
+        if let end { queryItems.append(URLQueryItem(name: "end", value: end)) }
+        let url = APIEndpoints.url(path: APIEndpoints.transactionAnalyticsSummary, queryItems: queryItems)
+        return try await request(url: url, method: "GET")
+    }
+
     // MARK: - Updates
 
     func getUpdates() async throws -> UpdatesResponse {

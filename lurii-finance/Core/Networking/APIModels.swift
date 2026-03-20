@@ -637,8 +637,9 @@ struct TransactionsListResponse: Codable {
     let items: [TransactionDTO]
     let total: Int
     let totalUngrouped: Int?
-    let limit: Int
-    let offset: Int
+    let windowStart: String?
+    let windowEnd: String?
+    let nextEndDate: String?
 }
 
 struct TransactionCategoryDTO: Codable, Identifiable {
