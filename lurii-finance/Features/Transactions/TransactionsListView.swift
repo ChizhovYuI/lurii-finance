@@ -458,6 +458,9 @@ struct TransactionsListView: View {
                     onSetCategory: { category in
                         viewModel.setCategory(txId: tx.id, category: category)
                     },
+                    onCreateCategory: { txType, name in
+                        viewModel.createCategory(txType: txType, name: name)
+                    },
                     onLinkTransfer: { partnerId in
                         viewModel.linkTransfer(txIdA: tx.id, txIdB: partnerId)
                         typePickerTxId = nil
@@ -508,6 +511,9 @@ struct TransactionsListView: View {
                 onSelect: { category in
                     viewModel.setCategory(txId: tx.id, category: category)
                     categoryPickerTxId = nil
+                },
+                onCreateCategory: { txType, name in
+                    viewModel.createCategory(txType: txType, name: name)
                 }
             )
         }
@@ -566,6 +572,7 @@ private struct TransactionEditPopover: View {
     let color: (String) -> Color
     let onSetType: (String) -> Void
     let onSetCategory: (String) -> Void
+    let onCreateCategory: (String, String) -> Void
     let onLinkTransfer: (Int) -> Void
     let onDone: () -> Void
 
@@ -573,6 +580,8 @@ private struct TransactionEditPopover: View {
 
     @State private var step: Step = .type
     @State private var selectedType: String?
+    @State private var isAddingCategory = false
+    @State private var newCategoryName = ""
     @State private var transferSources: [String] = []
     @State private var transferCandidates: [TransferCandidate] = []
     @State private var isLoadingCandidates = false
@@ -746,6 +755,48 @@ private struct TransactionEditPopover: View {
                         .padding(.vertical, 6)
                         .contentShape(Rectangle())
                         .background(isSelected ? Color.accentColor.opacity(0.08) : Color.clear)
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                Divider()
+
+                if isAddingCategory {
+                    HStack(spacing: 6) {
+                        TextField("Category name", text: $newCategoryName)
+                            .textFieldStyle(.plain)
+                            .font(.system(size: 12))
+                        Button {
+                            let name = newCategoryName.trimmingCharacters(in: .whitespaces)
+                            guard !name.isEmpty else { return }
+                            onCreateCategory(effectiveType, name)
+                            let key = name.lowercased().replacingOccurrences(of: " ", with: "_")
+                            onSetCategory(key)
+                            isAddingCategory = false
+                            newCategoryName = ""
+                            onDone()
+                        } label: {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 10, weight: .semibold))
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(newCategoryName.trimmingCharacters(in: .whitespaces).isEmpty)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                } else {
+                    Button {
+                        isAddingCategory = true
+                    } label: {
+                        HStack {
+                            Image(systemName: "plus")
+                                .font(.system(size: 10, weight: .semibold))
+                            Text("Add Category")
+                                .font(.system(size: 12))
+                        }
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
                     }
                     .buttonStyle(.plain)
                 }

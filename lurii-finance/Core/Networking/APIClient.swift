@@ -259,6 +259,11 @@ struct APIClient {
         try await request(path: APIEndpoints.transactionCategories, method: "GET")
     }
 
+    func createCategory(txType: String, category: String, displayName: String) async throws -> TransactionCategoryDTO {
+        let body: [String: String] = ["tx_type": txType, "category": category, "display_name": displayName]
+        return try await request(path: APIEndpoints.transactionCategories, method: "POST", body: body)
+    }
+
     func getTransactionReviewQueue(limit: Int = 50) async throws -> TransactionsListResponse {
         let url = APIEndpoints.url(path: APIEndpoints.transactionReviewQueue, queryItems: [
             URLQueryItem(name: "limit", value: String(limit))

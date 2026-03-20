@@ -249,6 +249,18 @@ final class TransactionsViewModel: ObservableObject {
         }
     }
 
+    func createCategory(txType: String, name: String) {
+        let key = name.lowercased().replacingOccurrences(of: " ", with: "_")
+        Task {
+            do {
+                let cat = try await APIClient.shared.createCategory(txType: txType, category: key, displayName: name)
+                self.categories.append(cat)
+            } catch {
+                // Silently fail.
+            }
+        }
+    }
+
     func categoriesForType(_ txType: String) -> [TransactionCategoryDTO] {
         categories.filter { $0.txType == txType }
     }

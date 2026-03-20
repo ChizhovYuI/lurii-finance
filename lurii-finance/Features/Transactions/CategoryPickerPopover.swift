@@ -6,10 +6,13 @@ struct CategoryPickerPopover: View {
     let categories: [TransactionCategoryDTO]
     let displayName: (String?) -> String
     let onSelect: (String) -> Void
+    var onCreateCategory: ((String, String) -> Void)?
 
     @State private var rawFields: [String: String]?
     @State private var matchedRule: CategoryRuleDTO?
     @State private var isLoadingDetail = false
+    @State private var isAddingCategory = false
+    @State private var newCategoryName = ""
 
     var body: some View {
         ScrollView {
@@ -53,6 +56,47 @@ struct CategoryPickerPopover: View {
                             .padding(.vertical, 6)
                             .contentShape(Rectangle())
                             .background(isSelected ? Color.accentColor.opacity(0.08) : Color.clear)
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    Divider()
+
+                    if isAddingCategory {
+                        HStack(spacing: 6) {
+                            TextField("Category name", text: $newCategoryName)
+                                .textFieldStyle(.plain)
+                                .font(.system(size: 12))
+                            Button {
+                                let name = newCategoryName.trimmingCharacters(in: .whitespaces)
+                                guard !name.isEmpty else { return }
+                                onCreateCategory?(tx.resolvedType, name)
+                                let key = name.lowercased().replacingOccurrences(of: " ", with: "_")
+                                onSelect(key)
+                                isAddingCategory = false
+                                newCategoryName = ""
+                            } label: {
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 10, weight: .semibold))
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(newCategoryName.trimmingCharacters(in: .whitespaces).isEmpty)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                    } else {
+                        Button {
+                            isAddingCategory = true
+                        } label: {
+                            HStack {
+                                Image(systemName: "plus")
+                                    .font(.system(size: 10, weight: .semibold))
+                                Text("Add Category")
+                                    .font(.system(size: 12))
+                            }
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
                         }
                         .buttonStyle(.plain)
                     }
@@ -110,6 +154,7 @@ struct CategoryPickerPopover: View {
             }
         }
         .scrollBounceBehavior(.basedOnSize)
+        .frame(idealHeight: min(CGFloat(categories.count) * 30 + 80, 320))
         .frame(maxHeight: 320)
         .padding(.vertical, 4)
         .task { await loadDetail() }
@@ -120,6 +165,7 @@ struct CategoryPickerPopover: View {
         categories: [TransactionCategoryDTO],
         displayName: @escaping (String?) -> String,
         onSelect: @escaping (String) -> Void,
+        onCreateCategory: ((String, String) -> Void)? = nil,
         previewRawFields: [String: String]? = nil,
         previewMatchedRule: CategoryRuleDTO? = nil
     ) {
@@ -127,6 +173,7 @@ struct CategoryPickerPopover: View {
         self.categories = categories
         self.displayName = displayName
         self.onSelect = onSelect
+        self.onCreateCategory = onCreateCategory
         self._rawFields = State(initialValue: previewRawFields)
         self._matchedRule = State(initialValue: previewMatchedRule)
         self._isLoadingDetail = State(initialValue: previewRawFields == nil && previewMatchedRule == nil)
