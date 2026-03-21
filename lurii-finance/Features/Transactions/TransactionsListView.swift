@@ -251,7 +251,7 @@ struct TransactionsListView: View {
             String(tx.date.prefix(10))
         }
         return grouped
-            .sorted { $0.key > $1.key }
+            .sorted { $0.key < $1.key }
             .map { section in
                 let sorted = section.value.sorted { a, b in
                     (a.time ?? "") < (b.time ?? "")
