@@ -101,7 +101,7 @@ struct DashboardView: View {
                 .frame(minHeight: 174)
             DashboardTrendsCard(trends: viewModel.trendPoints, granularity: "month")
                 .frame(minHeight: 220)
-            DashboardSpendByCategoryCard(trends: viewModel.trendPoints, granularity: "month")
+            DashboardSpendByCategoryCard(analytics: viewModel.txAnalytics)
                 .frame(minHeight: 220)
             DashboardStatementDropCard()
                 .frame(minHeight: 174)
@@ -1243,23 +1243,12 @@ private struct DashboardTrendsCard: View {
 private struct DashboardSpendByCategoryCard: View {
     @EnvironmentObject private var appState: AppState
 
-    let trends: [TrendPoint]
-    let granularity: String
-
-    @State private var hoverIndex: Int?
-
-    private var categoryTotals: [(name: String, value: Double)] {
-        var totals: [String: Double] = [:]
-        for point in trends {
-            for cat in point.categories ?? [] {
-                totals[cat.displayName, default: 0] += Double(cat.usdValue) ?? 0
-            }
-        }
-        return totals.map { (name: $0.key, value: $0.value) }.sorted { $0.value > $1.value }
-    }
+    let analytics: TransactionAnalyticsSummary?
 
     private var topCategories: [(name: String, value: Double)] {
-        Array(categoryTotals.prefix(5))
+        Array((analytics?.spendingByCategory ?? []).prefix(5).map {
+            (name: $0.displayName, value: Double($0.usdValue) ?? 0)
+        })
     }
 
     var body: some View {
