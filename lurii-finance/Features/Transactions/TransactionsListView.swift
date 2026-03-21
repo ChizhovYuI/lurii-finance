@@ -768,16 +768,26 @@ private struct TransactionEditPopover: View {
 
     private var categoryList: some View {
         Group {
-            if filteredCategories.isEmpty {
+            if let ruleCat = ruleCategoryForForm, isCreatingRule {
+                InlineRuleForm(
+                    txType: effectiveType,
+                    category: ruleCat,
+                    source: tx.source,
+                    rawFields: rawFields,
+                    onSaved: {
+                        isCreatingRule = false
+                        ruleCategoryForForm = nil
+                        onDone()
+                    }
+                )
+            } else if filteredCategories.isEmpty {
                 Text("No categories for \(effectiveType)")
                     .font(.system(size: 11))
                     .foregroundStyle(.tertiary)
                     .padding(12)
             } else {
                 ForEach(filteredCategories) { cat in
-                    let isSelected = isCreatingRule
-                        ? (cat.category == ruleCategoryForForm)
-                        : (cat.category == tx.metadata?.category)
+                    let isSelected = cat.category == tx.metadata?.category
                     Button {
                         onSetCategory(cat.category)
                         if cat.category == "transfer" {
@@ -819,9 +829,10 @@ private struct TransactionEditPopover: View {
                             onCreateCategory(effectiveType, name)
                             let key = name.lowercased().replacingOccurrences(of: " ", with: "_")
                             onSetCategory(key)
+                            ruleCategoryForForm = key
+                            isCreatingRule = true
                             isAddingCategory = false
                             newCategoryName = ""
-                            onDone()
                         } label: {
                             Image(systemName: "checkmark")
                                 .font(.system(size: 10, weight: .semibold))
@@ -846,21 +857,6 @@ private struct TransactionEditPopover: View {
                         .padding(.vertical, 6)
                     }
                     .buttonStyle(.plain)
-                }
-
-                if isCreatingRule, let ruleCat = ruleCategoryForForm {
-                    Divider()
-                    InlineRuleForm(
-                        txType: effectiveType,
-                        category: ruleCat,
-                        source: tx.source,
-                        rawFields: rawFields,
-                        onSaved: {
-                            isCreatingRule = false
-                            ruleCategoryForForm = nil
-                            onDone()
-                        }
-                    )
                 }
             }
         }

@@ -36,75 +36,7 @@ struct CategoryPickerPopover: View {
                         Divider()
                     }
 
-                    // Category buttons.
-                    ForEach(categories, id: \.category) { (cat: TransactionCategoryDTO) in
-                        let isSelected = ruleCategory == cat.category || (ruleCategory == nil && tx.metadata?.category == cat.category)
-                        Button {
-                            onSelect(cat.category)
-                            ruleCategory = cat.category
-                        } label: {
-                            HStack {
-                                Text(cat.displayName)
-                                    .font(.system(size: 12))
-                                    .foregroundStyle(.primary)
-                                Spacer()
-                                if isSelected {
-                                    Image(systemName: "checkmark")
-                                        .font(.system(size: 10, weight: .semibold))
-                                        .foregroundStyle(Color.accentColor)
-                                }
-                            }
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .contentShape(Rectangle())
-                            .background(isSelected ? Color.accentColor.opacity(0.08) : Color.clear)
-                        }
-                        .buttonStyle(.plain)
-                    }
-
-                    Divider()
-
-                    if isAddingCategory {
-                        HStack(spacing: 6) {
-                            TextField("Category name", text: $newCategoryName)
-                                .textFieldStyle(.plain)
-                                .font(.system(size: 12))
-                            Button {
-                                let name = newCategoryName.trimmingCharacters(in: .whitespaces)
-                                guard !name.isEmpty else { return }
-                                onCreateCategory?(tx.resolvedType, name)
-                                let key = name.lowercased().replacingOccurrences(of: " ", with: "_")
-                                onSelect(key)
-                                isAddingCategory = false
-                                newCategoryName = ""
-                            } label: {
-                                Image(systemName: "checkmark")
-                                    .font(.system(size: 10, weight: .semibold))
-                            }
-                            .buttonStyle(.plain)
-                            .disabled(newCategoryName.trimmingCharacters(in: .whitespaces).isEmpty)
-                        }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                    } else {
-                        Button {
-                            isAddingCategory = true
-                        } label: {
-                            HStack {
-                                Image(systemName: "plus")
-                                    .font(.system(size: 10, weight: .semibold))
-                                Text("Add Category")
-                                    .font(.system(size: 12))
-                            }
-                            .foregroundStyle(.secondary)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                        }
-                        .buttonStyle(.plain)
-                    }
-
                     if let ruleCat = ruleCategory {
-                        Divider()
                         InlineRuleForm(
                             txType: tx.resolvedType,
                             category: ruleCat,
@@ -115,6 +47,73 @@ struct CategoryPickerPopover: View {
                                 onDone?()
                             }
                         )
+                    } else {
+                        ForEach(categories, id: \.category) { (cat: TransactionCategoryDTO) in
+                            let isSelected = tx.metadata?.category == cat.category
+                            Button {
+                                onSelect(cat.category)
+                                ruleCategory = cat.category
+                            } label: {
+                                HStack {
+                                    Text(cat.displayName)
+                                        .font(.system(size: 12))
+                                        .foregroundStyle(.primary)
+                                    Spacer()
+                                    if isSelected {
+                                        Image(systemName: "checkmark")
+                                            .font(.system(size: 10, weight: .semibold))
+                                            .foregroundStyle(Color.accentColor)
+                                    }
+                                }
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .contentShape(Rectangle())
+                                .background(isSelected ? Color.accentColor.opacity(0.08) : Color.clear)
+                            }
+                            .buttonStyle(.plain)
+                        }
+
+                        Divider()
+
+                        if isAddingCategory {
+                            HStack(spacing: 6) {
+                                TextField("Category name", text: $newCategoryName)
+                                    .textFieldStyle(.plain)
+                                    .font(.system(size: 12))
+                                Button {
+                                    let name = newCategoryName.trimmingCharacters(in: .whitespaces)
+                                    guard !name.isEmpty else { return }
+                                    onCreateCategory?(tx.resolvedType, name)
+                                    let key = name.lowercased().replacingOccurrences(of: " ", with: "_")
+                                    onSelect(key)
+                                    ruleCategory = key
+                                    isAddingCategory = false
+                                    newCategoryName = ""
+                                } label: {
+                                    Image(systemName: "checkmark")
+                                        .font(.system(size: 10, weight: .semibold))
+                                }
+                                .buttonStyle(.plain)
+                                .disabled(newCategoryName.trimmingCharacters(in: .whitespaces).isEmpty)
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                        } else {
+                            Button {
+                                isAddingCategory = true
+                            } label: {
+                                HStack {
+                                    Image(systemName: "plus")
+                                        .font(.system(size: 10, weight: .semibold))
+                                    Text("Add Category")
+                                        .font(.system(size: 12))
+                                }
+                                .foregroundStyle(.secondary)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
                 }
             }
