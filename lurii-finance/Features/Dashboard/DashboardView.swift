@@ -1188,14 +1188,11 @@ private struct DashboardTrendsCard: View {
                                     HStack(alignment: .bottom, spacing: 2) {
                                         RoundedRectangle(cornerRadius: 3)
                                             .fill(DesignTokens.success.opacity(isHovered ? 1 : 0.7))
-                                            .frame(width: barWidth, height: max(CGFloat(income / maxValue) * (chartHeight - 20), income > 0 ? 2 : 0))
+                                            .frame(width: barWidth, height: max(CGFloat(income / maxValue) * chartHeight, income > 0 ? 2 : 0))
                                         RoundedRectangle(cornerRadius: 3)
                                             .fill(DesignTokens.error.opacity(isHovered ? 1 : 0.7))
-                                            .frame(width: barWidth, height: max(CGFloat(spending / maxValue) * (chartHeight - 20), spending > 0 ? 2 : 0))
+                                            .frame(width: barWidth, height: max(CGFloat(spending / maxValue) * chartHeight, spending > 0 ? 2 : 0))
                                     }
-                                    Text(formatTrendLabel(point.key, granularity: granularity))
-                                        .font(.system(size: 9))
-                                        .foregroundStyle(.secondary)
                                 }
                                 .frame(width: barGroupWidth)
                                 .onHover { hoverIndex = $0 ? index : nil }
