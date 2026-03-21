@@ -605,6 +605,7 @@ private struct TransactionEditPopover: View {
     @State private var selectedType: String?
     @State private var isAddingCategory = false
     @State private var newCategoryName = ""
+    @State private var isCreatingRule = false
     @State private var transferSources: [String] = []
     @State private var transferCandidates: [TransferCandidate] = []
     @State private var isLoadingCandidates = false
@@ -832,6 +833,32 @@ private struct TransactionEditPopover: View {
                             Image(systemName: "plus")
                                 .font(.system(size: 10, weight: .semibold))
                             Text("Add Category")
+                                .font(.system(size: 12))
+                        }
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                if isCreatingRule {
+                    Divider()
+                    InlineRuleForm(
+                        txType: effectiveType,
+                        category: tx.metadata?.category ?? "",
+                        source: tx.source,
+                        rawFields: rawFields,
+                        onSaved: { isCreatingRule = false }
+                    )
+                } else if tx.metadata?.category != nil {
+                    Button {
+                        isCreatingRule = true
+                    } label: {
+                        HStack {
+                            Image(systemName: "wand.and.stars")
+                                .font(.system(size: 10, weight: .semibold))
+                            Text("Create Rule")
                                 .font(.system(size: 12))
                         }
                         .foregroundStyle(.secondary)

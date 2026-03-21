@@ -13,6 +13,7 @@ struct CategoryPickerPopover: View {
     @State private var isLoadingDetail = false
     @State private var isAddingCategory = false
     @State private var newCategoryName = ""
+    @State private var isCreatingRule = false
 
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
@@ -91,6 +92,32 @@ struct CategoryPickerPopover: View {
                                 Image(systemName: "plus")
                                     .font(.system(size: 10, weight: .semibold))
                                 Text("Add Category")
+                                    .font(.system(size: 12))
+                            }
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    if isCreatingRule {
+                        Divider()
+                        InlineRuleForm(
+                            txType: tx.resolvedType,
+                            category: tx.metadata?.category ?? "",
+                            source: tx.source,
+                            rawFields: rawFields,
+                            onSaved: { isCreatingRule = false }
+                        )
+                    } else if tx.metadata?.category != nil {
+                        Button {
+                            isCreatingRule = true
+                        } label: {
+                            HStack {
+                                Image(systemName: "wand.and.stars")
+                                    .font(.system(size: 10, weight: .semibold))
+                                Text("Create Rule")
                                     .font(.system(size: 12))
                             }
                             .foregroundStyle(.secondary)
