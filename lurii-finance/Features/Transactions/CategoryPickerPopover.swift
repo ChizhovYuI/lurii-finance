@@ -13,7 +13,7 @@ struct CategoryPickerPopover: View {
     @State private var isLoadingDetail = false
     @State private var isAddingCategory = false
     @State private var newCategoryName = ""
-    @State private var isCreatingRule = false
+    @State private var ruleCategory: String?
 
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
@@ -37,9 +37,10 @@ struct CategoryPickerPopover: View {
 
                     // Category buttons.
                     ForEach(categories, id: \.category) { (cat: TransactionCategoryDTO) in
-                        let isSelected = tx.metadata?.category == cat.category
+                        let isSelected = ruleCategory == cat.category || (ruleCategory == nil && tx.metadata?.category == cat.category)
                         Button {
                             onSelect(cat.category)
+                            ruleCategory = cat.category
                         } label: {
                             HStack {
                                 Text(cat.displayName)
@@ -101,30 +102,15 @@ struct CategoryPickerPopover: View {
                         .buttonStyle(.plain)
                     }
 
-                    if isCreatingRule {
+                    if let ruleCat = ruleCategory {
                         Divider()
                         InlineRuleForm(
                             txType: tx.resolvedType,
-                            category: tx.metadata?.category ?? "",
+                            category: ruleCat,
                             source: tx.source,
                             rawFields: rawFields,
-                            onSaved: { isCreatingRule = false }
+                            onSaved: { ruleCategory = nil }
                         )
-                    } else if tx.metadata?.category != nil {
-                        Button {
-                            isCreatingRule = true
-                        } label: {
-                            HStack {
-                                Image(systemName: "wand.and.stars")
-                                    .font(.system(size: 10, weight: .semibold))
-                                Text("Create Rule")
-                                    .font(.system(size: 12))
-                            }
-                            .foregroundStyle(.secondary)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                        }
-                        .buttonStyle(.plain)
                     }
                 }
             }

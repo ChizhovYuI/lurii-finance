@@ -606,6 +606,7 @@ private struct TransactionEditPopover: View {
     @State private var isAddingCategory = false
     @State private var newCategoryName = ""
     @State private var isCreatingRule = false
+    @State private var ruleCategoryForForm: String?
     @State private var transferSources: [String] = []
     @State private var transferCandidates: [TransferCandidate] = []
     @State private var isLoadingCandidates = false
@@ -772,14 +773,17 @@ private struct TransactionEditPopover: View {
                     .padding(12)
             } else {
                 ForEach(filteredCategories) { cat in
-                    let isSelected = cat.category == tx.metadata?.category
+                    let isSelected = isCreatingRule
+                        ? (cat.category == ruleCategoryForForm)
+                        : (cat.category == tx.metadata?.category)
                     Button {
                         onSetCategory(cat.category)
                         if cat.category == "transfer" {
                             Task { await loadCandidates() }
                             step = .source
                         } else {
-                            onDone()
+                            ruleCategoryForForm = cat.category
+                            isCreatingRule = true
                         }
                     } label: {
                         HStack {
@@ -842,30 +846,19 @@ private struct TransactionEditPopover: View {
                     .buttonStyle(.plain)
                 }
 
-                if isCreatingRule {
+                if isCreatingRule, let ruleCat = ruleCategoryForForm {
                     Divider()
                     InlineRuleForm(
                         txType: effectiveType,
-                        category: tx.metadata?.category ?? "",
+                        category: ruleCat,
                         source: tx.source,
                         rawFields: rawFields,
-                        onSaved: { isCreatingRule = false }
-                    )
-                } else if tx.metadata?.category != nil {
-                    Button {
-                        isCreatingRule = true
-                    } label: {
-                        HStack {
-                            Image(systemName: "wand.and.stars")
-                                .font(.system(size: 10, weight: .semibold))
-                            Text("Create Rule")
-                                .font(.system(size: 12))
+                        onSaved: {
+                            isCreatingRule = false
+                            ruleCategoryForForm = nil
+                            onDone()
                         }
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                    }
-                    .buttonStyle(.plain)
+                    )
                 }
             }
         }
