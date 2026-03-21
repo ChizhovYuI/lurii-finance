@@ -264,10 +264,11 @@ struct APIClient {
         return try await request(path: APIEndpoints.transactionCategories, method: "POST", body: body)
     }
 
-    func getMonthlyTrends(months: Int = 6) async throws -> MonthlyTrendsResponse {
-        let url = APIEndpoints.url(path: APIEndpoints.transactionAnalyticsTrends, queryItems: [
-            URLQueryItem(name: "months", value: String(months))
-        ])
+    func getTrends(start: String? = nil, end: String? = nil, granularity: String = "month") async throws -> TrendsResponse {
+        var queryItems = [URLQueryItem(name: "granularity", value: granularity)]
+        if let start { queryItems.append(URLQueryItem(name: "start", value: start)) }
+        if let end { queryItems.append(URLQueryItem(name: "end", value: end)) }
+        let url = APIEndpoints.url(path: APIEndpoints.transactionAnalyticsTrends, queryItems: queryItems)
         return try await request(url: url, method: "GET")
     }
 

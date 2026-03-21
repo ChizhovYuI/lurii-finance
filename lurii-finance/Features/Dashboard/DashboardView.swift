@@ -99,7 +99,9 @@ struct DashboardView: View {
             .frame(minHeight: 174)
             DashboardTransactionCard(analytics: viewModel.txAnalytics)
                 .frame(minHeight: 174)
-            DashboardMonthlyTrendsCard(trends: viewModel.monthlyTrends)
+            DashboardTrendsCard(trends: viewModel.trendPoints, granularity: viewModel.trendGranularity)
+                .frame(minHeight: 220)
+            DashboardSpendByCategoryCard(trends: viewModel.trendPoints, granularity: viewModel.trendGranularity)
                 .frame(minHeight: 220)
             DashboardStatementDropCard()
                 .frame(minHeight: 174)
@@ -1131,34 +1133,44 @@ private struct DashboardTransactionCard: View {
     }
 }
 
-private struct DashboardMonthlyTrendsCard: View {
+private func formatTrendLabel(_ key: String, granularity: String) -> String {
+    if granularity == "month" {
+        let fmt = DateFormatter()
+        fmt.dateFormat = "yyyy-MM"
+        guard let date = fmt.date(from: key) else { return key }
+        let display = DateFormatter()
+        display.dateFormat = "MMM"
+        return display.string(from: date)
+    }
+    // day or week: "2026-03-14" → "Mar 14"
+    let fmt = DateFormatter()
+    fmt.dateFormat = "yyyy-MM-dd"
+    guard let date = fmt.date(from: String(key.prefix(10))) else { return key }
+    let display = DateFormatter()
+    display.dateFormat = "MMM d"
+    return display.string(from: date)
+}
+
+private struct DashboardTrendsCard: View {
     @EnvironmentObject private var appState: AppState
 
-    let trends: [MonthlyTrendPoint]
+    let trends: [TrendPoint]
+    let granularity: String
 
     @State private var hoverIndex: Int?
 
-    private var spendingValues: [Double] { trends.compactMap { Double($0.spending) } }
-    private var incomeValues: [Double] { trends.compactMap { Double($0.income) } }
-    private var maxValue: Double { max(spendingValues.max() ?? 0, incomeValues.max() ?? 0, 1) }
-
-    private var monthLabels: [String] {
-        let fmt = DateFormatter()
-        fmt.dateFormat = "yyyy-MM"
-        let display = DateFormatter()
-        display.dateFormat = "MMM"
-        return trends.map { point in
-            guard let date = fmt.date(from: point.month) else { return point.month }
-            return display.string(from: date)
-        }
+    private var maxValue: Double {
+        let s = trends.compactMap { Double($0.spending) }.max() ?? 0
+        let i = trends.compactMap { Double($0.income) }.max() ?? 0
+        return max(s, i, 1)
     }
 
     var body: some View {
         DashboardCardShell {
-            DashboardCardHeader(title: "Monthly Trends", systemImage: "chart.bar")
+            DashboardCardHeader(title: "Income & Spending", systemImage: "chart.bar")
 
             if trends.count < 2 {
-                DashboardUnavailableMessage("Not enough data for trends chart.")
+                DashboardUnavailableMessage("Not enough data for chart.")
             } else {
                 GeometryReader { geometry in
                     let barGroupWidth = geometry.size.width / CGFloat(trends.count)
@@ -1177,20 +1189,16 @@ private struct DashboardMonthlyTrendsCard: View {
                                         RoundedRectangle(cornerRadius: 3)
                                             .fill(DesignTokens.success.opacity(isHovered ? 1 : 0.7))
                                             .frame(width: barWidth, height: max(CGFloat(income / maxValue) * (chartHeight - 20), income > 0 ? 2 : 0))
-
                                         RoundedRectangle(cornerRadius: 3)
                                             .fill(DesignTokens.error.opacity(isHovered ? 1 : 0.7))
                                             .frame(width: barWidth, height: max(CGFloat(spending / maxValue) * (chartHeight - 20), spending > 0 ? 2 : 0))
                                     }
-
-                                    Text(index < monthLabels.count ? monthLabels[index] : "")
+                                    Text(formatTrendLabel(point.key, granularity: granularity))
                                         .font(.system(size: 9))
                                         .foregroundStyle(.secondary)
                                 }
                                 .frame(width: barGroupWidth)
-                                .onHover { hovering in
-                                    hoverIndex = hovering ? index : nil
-                                }
+                                .onHover { hoverIndex = $0 ? index : nil }
                             }
                         }
 
@@ -1198,10 +1206,9 @@ private struct DashboardMonthlyTrendsCard: View {
                             let point = trends[idx]
                             let spending = Double(point.spending) ?? 0
                             let income = Double(point.income) ?? 0
-                            let label = idx < monthLabels.count ? monthLabels[idx] : point.month
 
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(label)
+                                Text(formatTrendLabel(point.key, granularity: granularity))
                                     .font(.system(size: 10, weight: .semibold))
                                 if !appState.hideBalance {
                                     HStack(spacing: 8) {
@@ -1217,10 +1224,7 @@ private struct DashboardMonthlyTrendsCard: View {
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
                             .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 6))
-                            .position(
-                                x: (CGFloat(idx) + 0.5) * barGroupWidth,
-                                y: 16
-                            )
+                            .position(x: (CGFloat(idx) + 0.5) * barGroupWidth, y: 16)
                         }
                     }
                 }
@@ -1233,6 +1237,69 @@ private struct DashboardMonthlyTrendsCard: View {
                     Label("Spending", systemImage: "circle.fill")
                         .font(.system(size: 10))
                         .foregroundStyle(DesignTokens.error)
+                }
+            }
+        }
+    }
+}
+
+private struct DashboardSpendByCategoryCard: View {
+    @EnvironmentObject private var appState: AppState
+
+    let trends: [TrendPoint]
+    let granularity: String
+
+    @State private var hoverIndex: Int?
+
+    private var categoryTotals: [(name: String, value: Double)] {
+        var totals: [String: Double] = [:]
+        for point in trends {
+            for cat in point.categories ?? [] {
+                totals[cat.displayName, default: 0] += Double(cat.usdValue) ?? 0
+            }
+        }
+        return totals.map { (name: $0.key, value: $0.value) }.sorted { $0.value > $1.value }
+    }
+
+    private var topCategories: [(name: String, value: Double)] {
+        Array(categoryTotals.prefix(5))
+    }
+
+    var body: some View {
+        DashboardCardShell {
+            DashboardCardHeader(title: "Spending by Category", systemImage: "chart.pie")
+
+            if topCategories.isEmpty {
+                DashboardUnavailableMessage("No spending data available.")
+            } else {
+                let maxVal = topCategories.first?.value ?? 1
+
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(Array(topCategories.enumerated()), id: \.offset) { _, cat in
+                        HStack(spacing: 8) {
+                            Text(cat.name)
+                                .font(.subheadline)
+                                .lineLimit(1)
+                                .frame(width: 100, alignment: .leading)
+
+                            GeometryReader { geometry in
+                                let fillWidth = max(geometry.size.width * CGFloat(cat.value / maxVal), cat.value > 0 ? 4 : 0)
+                                Capsule()
+                                    .fill(DesignTokens.cardBackground)
+                                    .overlay(alignment: .leading) {
+                                        Capsule()
+                                            .fill(DesignTokens.error.opacity(0.72))
+                                            .frame(width: min(fillWidth, geometry.size.width))
+                                    }
+                            }
+                            .frame(height: 7)
+
+                            Text(appState.hideBalance ? "••••" : String(format: "$%.0f", cat.value))
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 60, alignment: .trailing)
+                        }
+                    }
                 }
             }
         }

@@ -31,6 +31,17 @@ enum DashboardDateRange: String, CaseIterable, Identifiable {
         }
     }
 
+    var trendsGranularity: String {
+        switch self {
+        case .oneWeek, .monthToDate:
+            return "day"
+        case .oneMonth:
+            return "week"
+        case .threeMonths, .yearToDate, .oneYear, .all:
+            return "month"
+        }
+    }
+
     var pnlTitle: String {
         "\(rawValue) PnL"
     }
@@ -138,7 +149,8 @@ final class DashboardViewModel: ObservableObject {
     @Published var sourceMovers: SourceMoversResponse?
     @Published var earnSummary: EarnSummaryResponse?
     @Published var txAnalytics: TransactionAnalyticsSummary?
-    @Published var monthlyTrends: [MonthlyTrendPoint] = []
+    @Published var trendPoints: [TrendPoint] = []
+    @Published var trendGranularity: String = "month"
     @Published var isLoading = false
     @Published var errorMessage: String?
 
@@ -168,11 +180,15 @@ final class DashboardViewModel: ObservableObject {
                 async let allocationTask = APIClient.shared.getAllocation()
                 async let sourceMoversTask = APIClient.shared.getSourceMovers()
                 async let earnSummaryTask = APIClient.shared.getEarnSummary()
-                async let trendsTask = APIClient.shared.getMonthlyTrends(months: 6)
 
                 let summary = try await summaryTask
                 async let historyTask = APIClient.shared.getPortfolioNetWorthHistory(days: range.historyDays(endingOn: summary.date))
                 async let txAnalyticsTask = APIClient.shared.getTransactionAnalyticsSummary(start: range.startDate(endingOn: summary.date), end: summary.date)
+                async let trendsTask = APIClient.shared.getTrends(
+                    start: range.startDate(endingOn: summary.date),
+                    end: summary.date,
+                    granularity: range.trendsGranularity
+                )
                 let history = try? await historyTask
                 let pnl = try? await pnlTask
                 let allocation = try? await allocationTask
@@ -190,7 +206,8 @@ final class DashboardViewModel: ObservableObject {
                 self.sourceMovers = sourceMovers
                 self.earnSummary = earnSummary
                 self.txAnalytics = txAnalytics
-                self.monthlyTrends = trends?.months ?? []
+                self.trendPoints = trends?.points ?? []
+                self.trendGranularity = trends?.granularity ?? "month"
             } catch is CancellationError {
                 return
             } catch {
@@ -202,7 +219,8 @@ final class DashboardViewModel: ObservableObject {
                 self.sourceMovers = nil
                 self.earnSummary = nil
                 self.txAnalytics = nil
-                self.monthlyTrends = []
+                self.trendPoints = []
+                self.trendGranularity = "month"
                 self.errorMessage = "Unable to load dashboard data: \(error.localizedDescription)"
             }
         }

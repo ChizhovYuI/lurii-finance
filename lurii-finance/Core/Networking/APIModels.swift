@@ -682,15 +682,17 @@ struct StatementUploadResponse: Codable {
     let errors: [String]
 }
 
-struct MonthlyTrendsResponse: Codable {
-    let months: [MonthlyTrendPoint]
+struct TrendsResponse: Codable {
+    let granularity: String
+    let points: [TrendPoint]
 }
 
-struct MonthlyTrendPoint: Codable, Identifiable {
-    var id: String { month }
-    let month: String
+struct TrendPoint: Codable, Identifiable {
+    var id: String { key }
+    let key: String
     let spending: String
     let income: String
+    let categories: [CategoryBreakdownRow]?
 }
 
 struct TransactionMetadataUpdateRequest: Codable {
