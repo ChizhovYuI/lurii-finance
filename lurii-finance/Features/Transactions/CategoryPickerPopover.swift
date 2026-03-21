@@ -119,7 +119,7 @@ struct CategoryPickerPopover: View {
                     }
                 }
             }
-            .frame(minWidth: 180, idealWidth: 220)
+            .frame(minWidth: 260, idealWidth: 320)
 
             // Right: raw fields panel.
             Divider()
@@ -171,7 +171,7 @@ struct CategoryPickerPopover: View {
             }
             .frame(minWidth: 200, idealWidth: 280)
         }
-        .frame(minWidth: 400, maxWidth: 600, minHeight: 120, maxHeight: 600)
+        .frame(minWidth: 500, maxWidth: 700, minHeight: 120, maxHeight: 600)
         .task { await loadDetail() }
     }
 
