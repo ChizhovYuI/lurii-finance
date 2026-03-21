@@ -31,15 +31,30 @@ enum DashboardDateRange: String, CaseIterable, Identifiable {
         }
     }
 
-    var trendsGranularity: String {
+    /// Trends chart always uses monthly granularity. Minimum range is 3 months.
+    func trendsStartDate(endingOn isoDate: String?) -> String? {
+        guard let isoDate, let endDate = Self.dateFormatter.date(from: isoDate) else { return nil }
+        let calendar = Calendar(identifier: .gregorian)
+
+        // Use the range start, but floor to at least 3 months back.
+        let rangeStart: Date?
         switch self {
-        case .oneWeek, .monthToDate:
-            return "day"
-        case .oneMonth:
-            return "week"
-        case .threeMonths, .yearToDate, .oneYear, .all:
-            return "month"
+        case .oneWeek, .monthToDate, .oneMonth:
+            rangeStart = nil // use 3-month minimum
+        case .threeMonths:
+            rangeStart = calendar.date(byAdding: .day, value: -89, to: endDate)
+        case .yearToDate:
+            rangeStart = calendar.date(from: DateComponents(year: calendar.component(.year, from: endDate), month: 1, day: 1))
+        case .oneYear:
+            rangeStart = calendar.date(byAdding: .day, value: -364, to: endDate)
+        case .all:
+            return nil
         }
+
+        let threeMonthsAgo = calendar.date(byAdding: .month, value: -3, to: endDate)
+        let effective = [rangeStart, threeMonthsAgo].compactMap { $0 }.min() ?? threeMonthsAgo
+        guard let effective else { return nil }
+        return Self.dateFormatter.string(from: effective)
     }
 
     var pnlTitle: String {
@@ -150,7 +165,6 @@ final class DashboardViewModel: ObservableObject {
     @Published var earnSummary: EarnSummaryResponse?
     @Published var txAnalytics: TransactionAnalyticsSummary?
     @Published var trendPoints: [TrendPoint] = []
-    @Published var trendGranularity: String = "month"
     @Published var isLoading = false
     @Published var errorMessage: String?
 
@@ -185,9 +199,9 @@ final class DashboardViewModel: ObservableObject {
                 async let historyTask = APIClient.shared.getPortfolioNetWorthHistory(days: range.historyDays(endingOn: summary.date))
                 async let txAnalyticsTask = APIClient.shared.getTransactionAnalyticsSummary(start: range.startDate(endingOn: summary.date), end: summary.date)
                 async let trendsTask = APIClient.shared.getTrends(
-                    start: range.startDate(endingOn: summary.date),
+                    start: range.trendsStartDate(endingOn: summary.date),
                     end: summary.date,
-                    granularity: range.trendsGranularity
+                    granularity: "month"
                 )
                 let history = try? await historyTask
                 let pnl = try? await pnlTask
@@ -207,7 +221,6 @@ final class DashboardViewModel: ObservableObject {
                 self.earnSummary = earnSummary
                 self.txAnalytics = txAnalytics
                 self.trendPoints = trends?.points ?? []
-                self.trendGranularity = trends?.granularity ?? "month"
             } catch is CancellationError {
                 return
             } catch {
@@ -220,7 +233,6 @@ final class DashboardViewModel: ObservableObject {
                 self.earnSummary = nil
                 self.txAnalytics = nil
                 self.trendPoints = []
-                self.trendGranularity = "month"
                 self.errorMessage = "Unable to load dashboard data: \(error.localizedDescription)"
             }
         }
