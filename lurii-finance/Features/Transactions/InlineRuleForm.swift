@@ -9,7 +9,7 @@ struct InlineRuleForm: View {
 
     @State private var ruleSource: String
     @State private var fieldName: String
-    @State private var fieldOperator: String = "contains"
+    @State private var fieldOperator: String
     @State private var fieldValue: String
     @State private var previewCount: Int?
     @State private var isSaving = false
@@ -31,16 +31,31 @@ struct InlineRuleForm: View {
         !fieldValue.trimmingCharacters(in: .whitespaces).isEmpty
     }
 
-    init(txType: String, category: String, source: String, rawFields: [String: String]?, onSaved: @escaping () -> Void) {
+    init(
+        txType: String,
+        category: String,
+        source: String,
+        rawFields: [String: String]?,
+        hintFieldName: String? = nil,
+        hintFieldOperator: String? = nil,
+        onSaved: @escaping () -> Void
+    ) {
         self.txType = txType
         self.category = category
         self.source = source
         self.rawFields = rawFields
         self.onSaved = onSaved
         _ruleSource = State(initialValue: source)
-        _fieldName = State(initialValue: "description")
-        let desc = rawFields?["description"] ?? ""
-        _fieldValue = State(initialValue: desc)
+
+        // Priority: hint param > last saved rule > default
+        let isType = category.isEmpty
+        let lastRule = Self.loadLastRule(source: source, isTypeRule: isType)
+        let resolvedField = hintFieldName ?? lastRule?.fieldName ?? "description"
+        let resolvedOp = hintFieldOperator ?? lastRule?.fieldOperator ?? "contains"
+
+        _fieldName = State(initialValue: resolvedField)
+        _fieldOperator = State(initialValue: resolvedOp)
+        _fieldValue = State(initialValue: rawFields?[resolvedField] ?? "")
     }
 
     var body: some View {
@@ -165,11 +180,39 @@ struct InlineRuleForm: View {
         .padding(.vertical, 8)
     }
 
+    // MARK: - Persistence
+
+    private static func saveLastRule(source: String, isTypeRule: Bool, fieldName: String, fieldOperator: String) {
+        let prefix = isTypeRule ? "ruleHint.type" : "ruleHint.cat"
+        UserDefaults.standard.set(fieldName, forKey: "\(prefix).\(source).fieldName")
+        UserDefaults.standard.set(fieldOperator, forKey: "\(prefix).\(source).fieldOperator")
+    }
+
+    static func loadLastRule(source: String, isTypeRule: Bool) -> (fieldName: String, fieldOperator: String)? {
+        let prefix = isTypeRule ? "ruleHint.type" : "ruleHint.cat"
+        guard let fn = UserDefaults.standard.string(forKey: "\(prefix).\(source).fieldName") else { return nil }
+        let fo = UserDefaults.standard.string(forKey: "\(prefix).\(source).fieldOperator") ?? "contains"
+        return (fn, fo)
+    }
+
+    // MARK: - API
+
     private func buildRequest() -> CategoryRuleCreateRequest {
         let trimmedValue = fieldValue.trimmingCharacters(in: .whitespaces)
         return CategoryRuleCreateRequest(
             typeMatch: txType,
             resultCategory: category,
+            fieldName: trimmedValue.isEmpty ? nil : fieldName,
+            fieldOperator: trimmedValue.isEmpty ? nil : fieldOperator,
+            fieldValue: trimmedValue.isEmpty ? nil : trimmedValue,
+            source: ruleSource.trimmingCharacters(in: .whitespaces)
+        )
+    }
+
+    private func buildTypeRuleRequest() -> TypeRuleCreateRequest {
+        let trimmedValue = fieldValue.trimmingCharacters(in: .whitespaces)
+        return TypeRuleCreateRequest(
+            resultType: txType,
             fieldName: trimmedValue.isEmpty ? nil : fieldName,
             fieldOperator: trimmedValue.isEmpty ? nil : fieldOperator,
             fieldValue: trimmedValue.isEmpty ? nil : trimmedValue,
@@ -196,21 +239,11 @@ struct InlineRuleForm: View {
             } else {
                 _ = try await APIClient.shared.createCategoryRule(body: buildRequest())
             }
+            Self.saveLastRule(source: source, isTypeRule: isTypeRule, fieldName: fieldName, fieldOperator: fieldOperator)
             onSaved()
         } catch {
             errorMessage = "Save failed"
         }
         isSaving = false
-    }
-
-    private func buildTypeRuleRequest() -> TypeRuleCreateRequest {
-        let trimmedValue = fieldValue.trimmingCharacters(in: .whitespaces)
-        return TypeRuleCreateRequest(
-            resultType: txType,
-            fieldName: trimmedValue.isEmpty ? nil : fieldName,
-            fieldOperator: trimmedValue.isEmpty ? nil : fieldOperator,
-            fieldValue: trimmedValue.isEmpty ? nil : trimmedValue,
-            source: ruleSource.trimmingCharacters(in: .whitespaces)
-        )
     }
 }

@@ -615,6 +615,8 @@ private struct TransactionEditPopover: View {
     @State private var isAddingCategory = false
     @State private var newCategoryName = ""
     @State private var isCreatingRule = false
+    @State private var lastTypeRuleField: String?
+    @State private var lastTypeRuleOperator: String?
     @State private var ruleCategoryForForm: String?
     @State private var transferSources: [String] = []
     @State private var transferCandidates: [TransferCandidate] = []
@@ -770,7 +772,14 @@ private struct TransactionEditPopover: View {
             category: "",
             source: tx.source,
             rawFields: rawFields,
-            onSaved: { onRuleSaved(); advanceToCategory() }
+            onSaved: {
+                // Capture last type rule hints for the category rule form.
+                let hint = InlineRuleForm.loadLastRule(source: tx.source, isTypeRule: true)
+                lastTypeRuleField = hint?.fieldName
+                lastTypeRuleOperator = hint?.fieldOperator
+                onRuleSaved()
+                advanceToCategory()
+            }
         )
     }
 
@@ -801,6 +810,8 @@ private struct TransactionEditPopover: View {
                     category: ruleCat,
                     source: tx.source,
                     rawFields: rawFields,
+                    hintFieldName: lastTypeRuleField,
+                    hintFieldOperator: lastTypeRuleOperator,
                     onSaved: {
                         isCreatingRule = false
                         ruleCategoryForForm = nil
