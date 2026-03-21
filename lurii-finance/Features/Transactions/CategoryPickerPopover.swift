@@ -7,6 +7,7 @@ struct CategoryPickerPopover: View {
     let displayName: (String?) -> String
     let onSelect: (String) -> Void
     var onCreateCategory: ((String, String) -> Void)?
+    var onRuleSaved: (() -> Void)?
     var onDone: (() -> Void)?
 
     @State private var rawFields: [String: String]?
@@ -44,6 +45,7 @@ struct CategoryPickerPopover: View {
                             rawFields: rawFields,
                             onSaved: {
                                 ruleCategory = nil
+                                onRuleSaved?()
                                 onDone?()
                             }
                         )
@@ -179,6 +181,7 @@ struct CategoryPickerPopover: View {
         displayName: @escaping (String?) -> String,
         onSelect: @escaping (String) -> Void,
         onCreateCategory: ((String, String) -> Void)? = nil,
+        onRuleSaved: (() -> Void)? = nil,
         onDone: (() -> Void)? = nil,
         previewRawFields: [String: String]? = nil,
         previewMatchedRule: CategoryRuleDTO? = nil
@@ -188,6 +191,7 @@ struct CategoryPickerPopover: View {
         self.displayName = displayName
         self.onSelect = onSelect
         self.onCreateCategory = onCreateCategory
+        self.onRuleSaved = onRuleSaved
         self.onDone = onDone
         self._rawFields = State(initialValue: previewRawFields)
         self._matchedRule = State(initialValue: previewMatchedRule)

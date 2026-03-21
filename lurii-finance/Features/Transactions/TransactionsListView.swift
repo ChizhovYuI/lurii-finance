@@ -461,6 +461,9 @@ struct TransactionsListView: View {
                     onCreateCategory: { txType, name in
                         viewModel.createCategory(txType: txType, name: name)
                     },
+                    onRuleSaved: {
+                        viewModel.reloadCurrentMonth()
+                    },
                     onLinkTransfer: { partnerId in
                         viewModel.linkTransfer(txIdA: tx.id, txIdB: partnerId)
                         typePickerTxId = nil
@@ -537,6 +540,9 @@ struct TransactionsListView: View {
                 onCreateCategory: { txType, name in
                     viewModel.createCategory(txType: txType, name: name)
                 },
+                onRuleSaved: {
+                    viewModel.reloadCurrentMonth()
+                },
                 onDone: {
                     categoryPickerTxId = nil
                 }
@@ -598,6 +604,7 @@ private struct TransactionEditPopover: View {
     let onSetType: (String) -> Void
     let onSetCategory: (String) -> Void
     let onCreateCategory: (String, String) -> Void
+    let onRuleSaved: () -> Void
     let onLinkTransfer: (Int) -> Void
     let onDone: () -> Void
 
@@ -763,7 +770,7 @@ private struct TransactionEditPopover: View {
             category: "",
             source: tx.source,
             rawFields: rawFields,
-            onSaved: { advanceToCategory() }
+            onSaved: { onRuleSaved(); advanceToCategory() }
         )
     }
 
@@ -797,6 +804,7 @@ private struct TransactionEditPopover: View {
                     onSaved: {
                         isCreatingRule = false
                         ruleCategoryForForm = nil
+                        onRuleSaved()
                         onDone()
                     }
                 )

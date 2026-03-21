@@ -251,7 +251,7 @@ final class TransactionsViewModel: ObservableObject {
         }
     }
 
-    private func reloadCurrentMonth() {
+    func reloadCurrentMonth() {
         loadMonth(currentMonth)
     }
 
