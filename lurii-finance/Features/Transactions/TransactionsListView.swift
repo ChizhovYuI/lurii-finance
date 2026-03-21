@@ -533,10 +533,12 @@ struct TransactionsListView: View {
                 displayName: viewModel.categoryDisplayName(for:),
                 onSelect: { category in
                     viewModel.setCategory(txId: tx.id, category: category)
-                    categoryPickerTxId = nil
                 },
                 onCreateCategory: { txType, name in
                     viewModel.createCategory(txType: txType, name: name)
+                },
+                onDone: {
+                    categoryPickerTxId = nil
                 }
             )
         }

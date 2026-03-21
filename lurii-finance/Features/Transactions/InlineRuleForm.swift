@@ -142,6 +142,14 @@ struct InlineRuleForm: View {
                 }
                 .controlSize(.small)
                 .disabled(!isValid || isSaving)
+
+                Spacer()
+
+                Button("Skip") {
+                    onSaved()
+                }
+                .controlSize(.small)
+                .foregroundStyle(.secondary)
             }
         }
         .padding(.horizontal, 12)
