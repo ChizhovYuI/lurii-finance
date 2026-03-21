@@ -721,7 +721,7 @@ struct CategoryBreakdownRow: Codable, Identifiable {
     let category: String
     let displayName: String
     let usdValue: String
-    let percentage: String
+    let percentage: String?
 }
 
 struct CategorizationResult: Codable {
