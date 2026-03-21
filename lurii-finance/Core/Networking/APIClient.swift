@@ -298,6 +298,10 @@ struct APIClient {
         try await request(path: APIEndpoints.categoryRules, method: "POST", body: body)
     }
 
+    func createTypeRule(body: TypeRuleCreateRequest) async throws {
+        _ = try await requestVoid(path: APIEndpoints.typeRules, method: "POST", body: body)
+    }
+
     func deleteCategoryRule(id: Int) async throws {
         _ = try await requestVoid(path: "\(APIEndpoints.categoryRules)/\(id)", method: "DELETE")
     }

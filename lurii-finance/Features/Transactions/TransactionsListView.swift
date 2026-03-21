@@ -601,7 +601,7 @@ private struct TransactionEditPopover: View {
     let onLinkTransfer: (Int) -> Void
     let onDone: () -> Void
 
-    private enum Step { case type, category, source, linkTransaction }
+    private enum Step { case type, typeRule, category, source, linkTransaction }
 
     @State private var step: Step = .type
     @State private var selectedType: String?
@@ -667,6 +667,8 @@ private struct TransactionEditPopover: View {
             switch step {
             case .type:
                 typeList
+            case .typeRule:
+                typeRuleForm
             case .category:
                 categoryList
             case .source:
@@ -682,7 +684,8 @@ private struct TransactionEditPopover: View {
             if step != .type {
                 Button {
                     switch step {
-                    case .category: step = .type
+                    case .typeRule: step = .type
+                    case .category: step = .typeRule
                     case .source: step = .category
                     case .linkTransaction: step = .source
                     case .type: break
@@ -711,6 +714,7 @@ private struct TransactionEditPopover: View {
     private var stepTitle: String {
         switch step {
         case .type: return "Type"
+        case .typeRule: return "Type Rule"
         case .category: return "Category"
         case .source: return "Source"
         case .linkTransaction: return "Link Transfer"
@@ -748,7 +752,23 @@ private struct TransactionEditPopover: View {
     }
 
     private func advanceAfterType(_ type: String) {
-        let cats = categories.filter { $0.txType == type }
+        step = .typeRule
+    }
+
+    // MARK: - Step 1.5: Type Rule
+
+    private var typeRuleForm: some View {
+        InlineRuleForm(
+            txType: effectiveType,
+            category: "",
+            source: tx.source,
+            rawFields: rawFields,
+            onSaved: { advanceToCategory() }
+        )
+    }
+
+    private func advanceToCategory() {
+        let cats = categories.filter { $0.txType == effectiveType }
         if cats.count == 1 {
             onSetCategory(cats[0].category)
             if cats[0].category == "transfer" {

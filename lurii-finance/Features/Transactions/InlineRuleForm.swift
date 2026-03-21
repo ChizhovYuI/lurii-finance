@@ -25,6 +25,8 @@ struct InlineRuleForm: View {
         return names
     }
 
+    private var isTypeRule: Bool { category.isEmpty }
+
     private var isValid: Bool {
         !fieldValue.trimmingCharacters(in: .whitespaces).isEmpty
     }
@@ -55,19 +57,24 @@ struct InlineRuleForm: View {
             }
 
             HStack(spacing: 6) {
+                Text(isTypeRule ? "Type rule" : "Category rule")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
                 Text(txType)
                     .font(.system(size: 10, weight: .medium))
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
                     .background(Color.accentColor.opacity(0.1), in: Capsule())
-                Image(systemName: "arrow.right")
-                    .font(.system(size: 8))
-                    .foregroundStyle(.secondary)
-                Text(category)
-                    .font(.system(size: 10, weight: .medium))
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Color.accentColor.opacity(0.1), in: Capsule())
+                if !isTypeRule {
+                    Image(systemName: "arrow.right")
+                        .font(.system(size: 8))
+                        .foregroundStyle(.secondary)
+                    Text(category)
+                        .font(.system(size: 10, weight: .medium))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.accentColor.opacity(0.1), in: Capsule())
+                }
             }
 
             HStack(spacing: 4) {
@@ -131,11 +138,13 @@ struct InlineRuleForm: View {
             }
 
             HStack(spacing: 8) {
-                Button("Preview") {
-                    Task { await preview() }
+                if !isTypeRule {
+                    Button("Preview") {
+                        Task { await preview() }
+                    }
+                    .controlSize(.small)
+                    .disabled(!isValid || isSaving)
                 }
-                .controlSize(.small)
-                .disabled(!isValid || isSaving)
 
                 Button("Save Rule") {
                     Task { await save() }
@@ -182,11 +191,26 @@ struct InlineRuleForm: View {
         isSaving = true
         errorMessage = nil
         do {
-            _ = try await APIClient.shared.createCategoryRule(body: buildRequest())
+            if isTypeRule {
+                try await APIClient.shared.createTypeRule(body: buildTypeRuleRequest())
+            } else {
+                _ = try await APIClient.shared.createCategoryRule(body: buildRequest())
+            }
             onSaved()
         } catch {
             errorMessage = "Save failed"
         }
         isSaving = false
+    }
+
+    private func buildTypeRuleRequest() -> TypeRuleCreateRequest {
+        let trimmedValue = fieldValue.trimmingCharacters(in: .whitespaces)
+        return TypeRuleCreateRequest(
+            resultType: txType,
+            fieldName: trimmedValue.isEmpty ? nil : fieldName,
+            fieldOperator: trimmedValue.isEmpty ? nil : fieldOperator,
+            fieldValue: trimmedValue.isEmpty ? nil : trimmedValue,
+            source: ruleSource.trimmingCharacters(in: .whitespaces)
+        )
     }
 }

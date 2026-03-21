@@ -598,6 +598,14 @@ struct SetTypeRequest: Codable {
     let type: String
 }
 
+struct TypeRuleCreateRequest: Codable {
+    let resultType: String
+    var fieldName: String?
+    var fieldOperator: String?
+    var fieldValue: String?
+    var source: String = "*"
+}
+
 struct CategoryRuleCreateRequest: Codable {
     let typeMatch: String
     let resultCategory: String
