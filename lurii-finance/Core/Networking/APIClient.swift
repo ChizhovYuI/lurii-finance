@@ -130,6 +130,20 @@ struct APIClient {
         _ = try await requestVoid(path: APIEndpoints.sourceApyRule(sourceName, ruleId: ruleId), method: "DELETE")
     }
 
+    // MARK: - Earn Overrides
+
+    func getEarnOverrides(sourceName: String) async throws -> EarnOverridesResponse {
+        try await request(path: APIEndpoints.sourceEarnOverrides(sourceName), method: "GET")
+    }
+
+    func setEarnOverrides(sourceName: String, body: EarnOverridesSaveRequest) async throws -> EarnOverridesResponse {
+        try await request(path: APIEndpoints.sourceEarnOverrides(sourceName), method: "PUT", body: body)
+    }
+
+    func deleteEarnOverrides(sourceName: String) async throws {
+        _ = try await requestVoid(path: APIEndpoints.sourceEarnOverrides(sourceName), method: "DELETE")
+    }
+
     func getPortfolioSummary() async throws -> PortfolioSummary {
         try await request(path: APIEndpoints.portfolioSummary, method: "GET")
     }

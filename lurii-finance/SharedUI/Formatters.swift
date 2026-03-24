@@ -45,8 +45,7 @@ enum ValueFormatters {
             return nil
         }
 
-        let normalized = decimal > 1 ? decimal / 100 : decimal
-        return formattedWithBounds(decimal: normalized, formatter: percentFormatter, scale: 4)
+        return formattedWithBounds(decimal: decimal, formatter: percentFormatter, scale: 4)
     }
 
     static func percentFromPercentValue(_ value: String?) -> String? {

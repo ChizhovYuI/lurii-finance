@@ -4,6 +4,7 @@ struct EarnSummaryView: View {
     @EnvironmentObject private var appState: AppState
     @StateObject private var viewModel: EarnSummaryViewModel
     @State private var filter = ""
+    @State private var overrideTarget: EarnPosition?
     @Namespace private var earnNamespace
 
     private let controlSize: CGFloat = 24
@@ -36,6 +37,21 @@ struct EarnSummaryView: View {
                 searchField
                     .frame(width: 200)
             }
+        }
+        .sheet(item: $overrideTarget) { position in
+            EarnOverrideSheet(
+                sourceName: position.sourceName ?? position.source,
+                existingOverride: EarnOverrideDTO(
+                    category: position.earnCategory ?? "",
+                    coin: position.asset,
+                    apr: position.apy.flatMap { apy in
+                        guard let d = Decimal(string: apy), d > 0 else { return nil }
+                        return "\(d * 100)"
+                    },
+                    settlementAt: position.settlementAt
+                ),
+                onSaved: { viewModel.load() }
+            )
         }
         .onAppear {
             guard !isPreview else { return }
@@ -271,6 +287,9 @@ struct EarnSummaryView: View {
             headerCell("Price", alignment: .trailing)
             headerCell("Value", alignment: .trailing)
             headerCell("APY", alignment: .trailing)
+            headerCell("Settlement", alignment: .trailing)
+            // Spacer for edit button column
+            Text("").frame(width: 24)
         }
         .padding(.horizontal, DesignTokens.blockRowHorizontalPadding)
         .font(.caption)
@@ -290,9 +309,34 @@ struct EarnSummaryView: View {
             rowCell(valueText, alignment: .trailing)
             let apyText = ValueFormatters.percent(from: position.apy) ?? position.apy ?? "—"
             rowCell(apyText, alignment: .trailing)
+            rowCell(formatSettlement(position.settlementAt), alignment: .trailing)
+
+            if position.earnCategory != nil {
+                Button {
+                    overrideTarget = position
+                } label: {
+                    Image(systemName: "slider.horizontal.3")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .frame(width: 24)
+            } else {
+                Text("").frame(width: 24)
+            }
         }
         .padding(.horizontal, DesignTokens.blockRowHorizontalPadding)
         .font(.subheadline)
+    }
+
+    private func formatSettlement(_ iso: String?) -> String {
+        guard let iso else { return "—" }
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        guard let date = formatter.date(from: iso) else { return iso }
+        let display = DateFormatter()
+        display.dateFormat = "MMM d"
+        return display.string(from: date)
     }
 
     private func headerCell(_ text: String, alignment: Alignment = .leading) -> some View {
@@ -586,13 +630,16 @@ private struct EarnPreviewHost: View {
                 ),
                 EarnPosition(
                     id: 2,
-                    source: "Binance",
-                    asset: "ETH",
+                    source: "bybit",
+                    sourceName: "bybit-main",
+                    asset: "USDT",
                     assetType: "crypto",
-                    amount: "2.2",
-                    usdValue: "6420.00",
-                    price: "2918.18",
-                    apy: "0.058"
+                    amount: "1053.63",
+                    usdValue: "1053.63",
+                    price: "1.00",
+                    apy: "1.7936",
+                    settlementAt: "2026-03-28T07:59:00Z",
+                    earnCategory: "Dual Asset"
                 )
             ],
             idleAssets: [
@@ -609,11 +656,11 @@ private struct EarnPreviewHost: View {
                 EarnPosition(
                     id: 4,
                     source: "bybit",
-                    asset: "USDT",
+                    asset: "ETH",
                     assetType: "crypto",
-                    amount: "5200.00",
-                    usdValue: "5200.00",
-                    price: "1.00",
+                    amount: "2.2",
+                    usdValue: "6420.00",
+                    price: "2918.18",
                     apy: "0"
                 )
             ],

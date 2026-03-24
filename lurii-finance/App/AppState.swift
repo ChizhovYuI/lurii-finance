@@ -390,6 +390,7 @@ final class AppState: ObservableObject {
             }
         case "collection_completed":
             let message = payload["message"] as? String
+            let singleSource = payload["source"] as? String
             Task { @MainActor in
                 collecting = false
                 collectionProgress = 1
@@ -398,8 +399,10 @@ final class AppState: ObservableObject {
                 }
             }
             NotificationCenter.default.post(name: .collectionCompleted, object: nil)
-            Task { @MainActor [weak self] in
-                await self?.syncEnabledWebSourcesAfterCollect()
+            if singleSource == nil {
+                Task { @MainActor [weak self] in
+                    await self?.syncEnabledWebSourcesAfterCollect()
+                }
             }
         case "collection_failed":
             let error = payload["error"] as? String

@@ -344,12 +344,33 @@ struct EarnHistoryResponse: Codable {
 struct EarnPosition: Codable, Identifiable {
     let id: Int
     let source: String
+    var sourceName: String? = nil
     let asset: String
     let assetType: String?
     let amount: String?
     let usdValue: String?
     let price: String?
     let apy: String?
+    var settlementAt: String? = nil
+    var earnCategory: String? = nil
+}
+
+// MARK: - Earn Overrides
+
+struct EarnOverrideDTO: Codable, Identifiable {
+    var id: String { "\(category)-\(coin)" }
+    let category: String
+    let coin: String
+    let apr: String?
+    let settlementAt: String?
+}
+
+struct EarnOverridesResponse: Codable {
+    let overrides: [EarnOverrideDTO]
+}
+
+struct EarnOverridesSaveRequest: Codable {
+    let overrides: [EarnOverrideDTO]
 }
 
 // MARK: - AI

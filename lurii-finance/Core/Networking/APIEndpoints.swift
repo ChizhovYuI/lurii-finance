@@ -24,6 +24,7 @@ enum APIEndpoints {
     static func sourceDetail(_ name: String) -> String { "/api/v1/sources/\(name)" }
     static func sourceApyRules(_ name: String) -> String { "/api/v1/sources/\(name)/apy-rules" }
     static func sourceApyRule(_ name: String, ruleId: String) -> String { "/api/v1/sources/\(name)/apy-rules/\(ruleId)" }
+    static func sourceEarnOverrides(_ name: String) -> String { "/api/v1/sources/\(name)/earn-overrides" }
     static let extSnapshot = "/api/v1/ext/snapshot"
     static let cashManual = "/api/v1/cash/manual"
 
