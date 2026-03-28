@@ -5,7 +5,15 @@ struct EarnSummaryView: View {
     @StateObject private var viewModel: EarnSummaryViewModel
     @State private var filter = ""
     @State private var overrideTarget: EarnPosition?
+    @State private var expandedSections: Set<String> = []
     @Namespace private var earnNamespace
+
+    @AppStorage("earn.groupBy") private var groupByRaw = GroupByMode.none.rawValue
+
+    private var groupBy: GroupByMode {
+        get { GroupByMode(rawValue: groupByRaw) ?? .none }
+        set { groupByRaw = newValue.rawValue }
+    }
 
     private let controlSize: CGFloat = 24
 
@@ -33,6 +41,14 @@ struct EarnSummaryView: View {
         }
         .navigationTitle("Earn")
         .toolbar {
+            ToolbarItem(placement: .automatic) {
+                groupByPicker
+            }
+            if groupBy != .none {
+                ToolbarItem(placement: .automatic) {
+                    expandAllToggle
+                }
+            }
             ToolbarItem(placement: .automatic) {
                 searchField
                     .frame(width: 200)
@@ -65,6 +81,9 @@ struct EarnSummaryView: View {
                 viewModel.load()
             }
         }
+        .onChange(of: groupByRaw) { _, _ in
+            expandedSections = []
+        }
     }
 
     private var content: some View {
@@ -78,8 +97,21 @@ struct EarnSummaryView: View {
             } else if let summary = viewModel.summary {
                 VStack(alignment: .leading, spacing: 16) {
                     totals(summary)
-                    positionsTable(summary)
-                    idleAssetsTable(summary)
+
+                    if groupBy == .none {
+                        positionsTable(summary)
+                        idleAssetsTable(summary)
+                    } else {
+                        let sections = earnSections(summary)
+                        if sections.isEmpty {
+                            Text("No earn data")
+                                .foregroundStyle(.secondary)
+                        } else {
+                            ForEach(sections) { section in
+                                earnSectionBlock(section)
+                            }
+                        }
+                    }
                 }
             } else {
                 EmptyStateView(title: "No earn data", message: "Yield-bearing positions will appear here once available.")
@@ -363,6 +395,264 @@ struct EarnSummaryView: View {
             rowCell(source)
         }
     }
+
+    // MARK: - Group By
+
+    private var groupByPicker: some View {
+        Picker("Group by", selection: $groupByRaw) {
+            ForEach(GroupByMode.allCases) { mode in
+                Image(systemName: mode.systemImage)
+                    .symbolRenderingMode(.monochrome)
+                    .font(.system(size: 13, weight: .semibold))
+                    .accessibilityLabel(Text(mode.title))
+                    .help("Group by \(mode.title)")
+                    .tag(mode.rawValue)
+            }
+        }
+        .labelsHidden()
+        .pickerStyle(.segmented)
+        .fixedSize(horizontal: true, vertical: false)
+        .frame(height: controlSize)
+        .glassEffect(.regular, in: Capsule())
+        .glassEffectID("earn-group-by", in: earnNamespace)
+    }
+
+    private var expandAllToggle: some View {
+        Toggle(
+            isOn: Binding(
+                get: { !expandedSections.isEmpty },
+                set: { expand in
+                    if expand {
+                        if let summary = viewModel.summary {
+                            expandedSections = Set(earnSections(summary).map(\.id))
+                        }
+                    } else {
+                        expandedSections = []
+                    }
+                }
+            )
+        ) {
+            Label("Expand all", systemImage: "rectangle.expand.vertical")
+        }
+    }
+
+    private func filterPositions(_ positions: [EarnPosition]) -> [EarnPosition] {
+        let localTokens = filter.lowercased()
+            .split(whereSeparator: { $0.isWhitespace }).map(String.init)
+        let globalTokens = appState.globalSearchQuery.lowercased()
+            .split(whereSeparator: { $0.isWhitespace }).map(String.init)
+
+        guard !localTokens.isEmpty || !globalTokens.isEmpty else { return positions }
+
+        return positions.filter { position in
+            let haystack = [position.asset.lowercased(), position.source.lowercased()]
+            let localMatches = localTokens.allSatisfy { token in haystack.contains { $0.contains(token) } }
+            let globalMatches = globalTokens.allSatisfy { token in haystack.contains { $0.contains(token) } }
+            return localMatches && globalMatches
+        }
+    }
+
+    private func earnSections(_ summary: EarnSummaryResponse) -> [EarnSection] {
+        let allPositions = filterPositions(
+            summary.positions.sorted { lhs, rhs in
+                let l = Decimal(string: lhs.apy ?? "0") ?? 0
+                let r = Decimal(string: rhs.apy ?? "0") ?? 0
+                return l > r
+            }
+        )
+        let allIdle = filterPositions(summary.idleAssets ?? [])
+
+        let totalPortfolioValue: Decimal = {
+            let posValue = allPositions.reduce(Decimal.zero) { $0 + (Decimal(string: $1.usdValue ?? "") ?? 0) }
+            let idleValue = allIdle.reduce(Decimal.zero) { $0 + (Decimal(string: $1.usdValue ?? "") ?? 0) }
+            return posValue + idleValue
+        }()
+
+        switch groupBy {
+        case .none:
+            return []
+
+        case .source:
+            var groups: [String: (positions: [EarnPosition], idle: [EarnPosition])] = [:]
+            for p in allPositions {
+                let key = p.sourceName ?? p.source
+                groups[key, default: ([], [])].positions.append(p)
+            }
+            for p in allIdle {
+                let key = p.sourceName ?? p.source
+                groups[key, default: ([], [])].idle.append(p)
+            }
+
+            return groups.compactMap { key, items in
+                guard !items.positions.isEmpty || !items.idle.isEmpty else { return nil }
+                let total = (items.positions + items.idle).reduce(Decimal.zero) {
+                    $0 + (Decimal(string: $1.usdValue ?? "") ?? 0)
+                }
+                let pct = totalPortfolioValue > 0 ? (total / totalPortfolioValue) * 100 : nil
+                let sourceKey = items.positions.first?.source ?? items.idle.first?.source ?? key
+                return EarnSection(
+                    id: key,
+                    title: key,
+                    iconName: sourceKey.sourceIconName(),
+                    iconIsSystemSymbol: false,
+                    totalUsdValue: total,
+                    percentage: pct,
+                    positions: items.positions,
+                    idleAssets: items.idle
+                )
+            }
+            .sorted { $0.totalUsdValue > $1.totalUsdValue }
+
+        case .type:
+            var groups: [String: (positions: [EarnPosition], idle: [EarnPosition])] = [:]
+            for p in allPositions {
+                let key = normalizeType(p.assetType) ?? "other"
+                groups[key, default: ([], [])].positions.append(p)
+            }
+            for p in allIdle {
+                let key = normalizeType(p.assetType) ?? "other"
+                groups[key, default: ([], [])].idle.append(p)
+            }
+
+            return groups.compactMap { key, items in
+                guard !items.positions.isEmpty || !items.idle.isEmpty else { return nil }
+                let total = (items.positions + items.idle).reduce(Decimal.zero) {
+                    $0 + (Decimal(string: $1.usdValue ?? "") ?? 0)
+                }
+                let pct = totalPortfolioValue > 0 ? (total / totalPortfolioValue) * 100 : nil
+                return EarnSection(
+                    id: key,
+                    title: typeTitle(for: key),
+                    iconName: typeSymbol(for: key),
+                    iconIsSystemSymbol: true,
+                    totalUsdValue: total,
+                    percentage: pct,
+                    positions: items.positions,
+                    idleAssets: items.idle
+                )
+            }
+            .sorted { $0.totalUsdValue > $1.totalUsdValue }
+        }
+    }
+
+    private func earnSectionBlock(_ section: EarnSection) -> some View {
+        let expanded = expandedSections.contains(section.id)
+        return VStack(alignment: .leading, spacing: 12) {
+            CollapsibleSectionHeader(
+                title: section.title,
+                iconName: section.iconName,
+                iconIsSystemSymbol: section.iconIsSystemSymbol,
+                totalUsdValue: ValueFormatters.currency(
+                    from: NSDecimalNumber(decimal: section.totalUsdValue).stringValue,
+                    code: "usd"
+                ),
+                percentage: section.percentage.flatMap {
+                    ValueFormatters.percentFromPercentValue(
+                        NSDecimalNumber(decimal: $0).stringValue
+                    )
+                },
+                isExpanded: Binding(
+                    get: { expandedSections.contains(section.id) },
+                    set: { isExpanded in
+                        if isExpanded {
+                            expandedSections.insert(section.id)
+                        } else {
+                            expandedSections.remove(section.id)
+                        }
+                    }
+                ),
+                hideBalance: appState.hideBalance
+            )
+
+            if expanded {
+                Divider()
+
+                if !section.positions.isEmpty {
+                    headerRow
+
+                    ForEach(section.positions) { position in
+                        positionRow(position)
+                    }
+                }
+
+                if !section.idleAssets.isEmpty {
+                    if !section.positions.isEmpty {
+                        Divider()
+                    }
+
+                    HStack(spacing: 6) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(DesignTokens.warning)
+                        Text("Idle")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.horizontal, DesignTokens.blockRowHorizontalPadding)
+
+                    idleHeaderRow
+
+                    ForEach(section.idleAssets) { position in
+                        idleRow(position)
+                    }
+                }
+
+                if section.positions.isEmpty && section.idleAssets.isEmpty {
+                    Text("No positions")
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, DesignTokens.blockRowHorizontalPadding)
+                }
+            }
+        }
+        .padding(DesignTokens.blockPadding)
+        .background(.white, in: .rect(cornerRadius: DesignTokens.blockCornerRadius))
+        .glassEffect(in: .rect(cornerRadius: DesignTokens.blockCornerRadius))
+        .overlay(
+            RoundedRectangle(cornerRadius: DesignTokens.blockCornerRadius)
+                .stroke(DesignTokens.border)
+        )
+    }
+
+    // MARK: - Type Helpers
+
+    private func normalizeType(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return normalized.isEmpty ? nil : normalized
+    }
+
+    private func typeSymbol(for rawType: String?) -> String {
+        switch normalizeType(rawType) {
+        case "crypto": "bitcoinsign.circle"
+        case "defi": "link.circle"
+        case "fiat": "banknote"
+        case "stocks": "chart.line.uptrend.xyaxis"
+        case "deposit": "building.columns.circle"
+        default: "questionmark.circle"
+        }
+    }
+
+    private func typeTitle(for rawType: String?) -> String {
+        switch normalizeType(rawType) {
+        case "crypto": "Crypto"
+        case "defi": "DeFi"
+        case "fiat": "Fiat"
+        case "stocks": "Stocks"
+        case "deposit": "Deposit"
+        default: "Other"
+        }
+    }
+}
+
+private struct EarnSection: Identifiable {
+    let id: String
+    let title: String
+    let iconName: String?
+    let iconIsSystemSymbol: Bool
+    let totalUsdValue: Decimal
+    let percentage: Decimal?
+    let positions: [EarnPosition]
+    let idleAssets: [EarnPosition]
 }
 
 private struct EarnSummaryMetricCard: View {

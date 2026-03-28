@@ -11,6 +11,14 @@ struct AllocationView: View {
     @AppStorage("allocation.sortKey") private var sortKeyRaw = AllocationSortKey.value.rawValue
     @AppStorage("allocation.sortAscending") private var sortAscending = false
     @AppStorage("allocation.visibleColumns") private var visibleColumnsRaw = AllocationColumn.defaultStorage
+    @AppStorage("allocation.groupBy") private var groupByRaw = GroupByMode.none.rawValue
+
+    @State private var expandedSections: Set<String> = []
+
+    private var groupBy: GroupByMode {
+        get { GroupByMode(rawValue: groupByRaw) ?? .none }
+        set { groupByRaw = newValue.rawValue }
+    }
 
     private var isPreview: Bool {
         ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
@@ -51,16 +59,18 @@ struct AllocationView: View {
     private let tableRightScrollPadding: CGFloat = 12
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Allocation")
-                .font(.title)
-            contentContainer
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Allocation")
+                    .font(.title)
+                contentContainer
+            }
+            .frame(maxWidth: .infinity, alignment: .topLeading)
         .padding(.leading, DesignTokens.pageContentPadding)
         .padding(.trailing, DesignTokens.pageContentTrailingPadding)
         .padding(.top, DesignTokens.pageContentPadding)
         .padding(.bottom, 8)
+        }
         .navigationTitle("Allocation")
         .toolbar {
             ToolbarItem(placement: .automatic) {
@@ -68,7 +78,17 @@ struct AllocationView: View {
                     .frame(width: 200)
             }
             ToolbarItem(placement: .automatic) {
-                typeTabsBar
+                groupByPicker
+            }
+            if groupBy != .none {
+                ToolbarItem(placement: .automatic) {
+                    expandAllToggle
+                }
+            }
+            if groupBy != .type {
+                ToolbarItem(placement: .automatic) {
+                    typeTabsBar
+                }
             }
             ToolbarItem(placement: .automatic) {
                 controlsMenu
@@ -93,35 +113,43 @@ struct AllocationView: View {
                 viewModel.load()
             }
         }
-    }
-
-    private var contentContainer: some View {
-        Group {
-            if viewModel.isLoading {
-                ProgressView("Loading allocation...")
-            } else if let errorMessage = viewModel.errorMessage {
-                EmptyStateView(title: "Allocation unavailable", message: errorMessage, actionTitle: "Retry") {
-                    viewModel.load()
-                }
-            } else {
-                ScrollView(.vertical) {
-                    allocationTable
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.bottom, 12)
-                }
-                .scrollIndicators(.visible)
+        .onChange(of: groupByRaw) { _, newValue in
+            expandedSections = []
+            if GroupByMode(rawValue: newValue) == .type {
+                selectedType = "all"
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .padding(.leading, DesignTokens.blockPadding)
-        .padding(.trailing, 8)
-        .padding(.top, 16)
-        .background(.white, in: .rect(cornerRadius: DesignTokens.blockCornerRadius))
-        .glassEffect(in: .rect(cornerRadius: DesignTokens.blockCornerRadius))
-        .overlay(
-            RoundedRectangle(cornerRadius: DesignTokens.blockCornerRadius)
-                .stroke(DesignTokens.border)
-        )
+    }
+
+    @ViewBuilder
+    private var contentContainer: some View {
+        if viewModel.isLoading {
+            ProgressView("Loading allocation...")
+        } else if let errorMessage = viewModel.errorMessage {
+            EmptyStateView(title: "Allocation unavailable", message: errorMessage, actionTitle: "Retry") {
+                viewModel.load()
+            }
+        } else if groupBy == .none {
+            ScrollView(.vertical) {
+                allocationTable
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.bottom, 12)
+            }
+            .scrollIndicators(.visible)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .padding(.leading, DesignTokens.blockPadding)
+            .padding(.trailing, 8)
+            .padding(.top, 16)
+            .background(.white, in: .rect(cornerRadius: DesignTokens.blockCornerRadius))
+            .glassEffect(in: .rect(cornerRadius: DesignTokens.blockCornerRadius))
+            .overlay(
+                RoundedRectangle(cornerRadius: DesignTokens.blockCornerRadius)
+                    .stroke(DesignTokens.border)
+            )
+        } else {
+            allocationTable
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 
     private var controlsMenu: some View {
@@ -185,6 +213,7 @@ struct AllocationView: View {
                     }
                 }
             }
+
         }
     }
 
@@ -205,6 +234,41 @@ struct AllocationView: View {
         .fixedSize(horizontal: true, vertical: false)
         .frame(height: controlSize)
         .glassEffectID("allocation-type-tabs", in: glassNamespace)
+    }
+
+    private var groupByPicker: some View {
+        Picker("Group by", selection: $groupByRaw) {
+            ForEach(GroupByMode.allCases) { mode in
+                Image(systemName: mode.systemImage)
+                    .symbolRenderingMode(.monochrome)
+                    .font(.system(size: 13, weight: .semibold))
+                    .accessibilityLabel(Text(mode.title))
+                    .help("Group by \(mode.title)")
+                    .tag(mode.rawValue)
+            }
+        }
+        .labelsHidden()
+        .pickerStyle(.segmented)
+        .fixedSize(horizontal: true, vertical: false)
+        .frame(height: controlSize)
+        .glassEffectID("allocation-group-by", in: glassNamespace)
+    }
+
+    private var expandAllToggle: some View {
+        Toggle(
+            isOn: Binding(
+                get: { !expandedSections.isEmpty },
+                set: { expand in
+                    if expand {
+                        expandedSections = Set(allocationSections().map(\.id))
+                    } else {
+                        expandedSections = []
+                    }
+                }
+            )
+        ) {
+            Label("Expand all", systemImage: "rectangle.expand.vertical")
+        }
     }
 
     private var searchField: some View {
@@ -234,17 +298,77 @@ struct AllocationView: View {
 
     private var allocationTable: some View {
         LazyVStack(alignment: .leading, spacing: 12) {
-            allocationHeader
+            if groupBy == .none {
+                allocationHeader
 
-            if filteredRows.isEmpty {
-                Text("No allocation data yet")
-                    .foregroundStyle(.secondary)
+                if filteredRows.isEmpty {
+                    Text("No allocation data yet")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(filteredRows) { row in
+                        allocationRow(row)
+                    }
+                }
             } else {
-                ForEach(filteredRows) { row in
+                let sections = allocationSections()
+                if sections.isEmpty {
+                    Text("No allocation data yet")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(sections) { section in
+                        allocationSectionView(section)
+                    }
+                }
+            }
+        }
+    }
+
+    private func allocationSectionView(_ section: AllocationSection) -> some View {
+        let expanded = expandedSections.contains(section.id)
+        return VStack(alignment: .leading, spacing: 8) {
+            CollapsibleSectionHeader(
+                title: section.title,
+                iconName: section.iconName,
+                iconIsSystemSymbol: section.iconIsSystemSymbol,
+                totalUsdValue: ValueFormatters.currency(
+                    from: NSDecimalNumber(decimal: section.totalUsdValue).stringValue,
+                    code: "usd"
+                ),
+                percentage: section.percentage.flatMap {
+                    ValueFormatters.percentFromPercentValue(
+                        NSDecimalNumber(decimal: $0).stringValue
+                    )
+                },
+                isExpanded: Binding(
+                    get: { expandedSections.contains(section.id) },
+                    set: { isExpanded in
+                        if isExpanded {
+                            expandedSections.insert(section.id)
+                        } else {
+                            expandedSections.remove(section.id)
+                        }
+                    }
+                ),
+                hideBalance: appState.hideBalance
+            )
+
+            if expanded {
+                Divider()
+
+                allocationHeader
+
+                ForEach(section.rows) { row in
                     allocationRow(row)
                 }
             }
         }
+        .padding(DesignTokens.blockPadding)
+        .background(.white, in: .rect(cornerRadius: DesignTokens.blockCornerRadius))
+        .glassEffect(in: .rect(cornerRadius: DesignTokens.blockCornerRadius))
+        .overlay(
+            RoundedRectangle(cornerRadius: DesignTokens.blockCornerRadius)
+                .stroke(DesignTokens.border)
+        )
     }
 
     private var allocationHeader: some View {
@@ -355,7 +479,7 @@ struct AllocationView: View {
             .accessibilityLabel(Text(typeTitle(for: rawType)))
     }
 
-    private func groupedAllocationRows() -> [AllocationGroupRow] {
+    private func filteredHoldings() -> [AllocationRow] {
         var holdings = viewModel.summary?.holdings ?? []
 
         if hideSmallAmounts {
@@ -391,6 +515,11 @@ struct AllocationView: View {
             }
         }
 
+        return holdings
+    }
+
+    private func groupedAllocationRows() -> [AllocationGroupRow] {
+        let holdings = filteredHoldings()
         let netWorthDecimal = netWorthUSD()
         var groups: [String: AllocationGroupAccumulator] = [:]
 
@@ -404,6 +533,85 @@ struct AllocationView: View {
         return groups.values
             .map { $0.build(netWorth: netWorthDecimal) }
             .sorted(by: sortRows)
+    }
+
+    private func allocationSections() -> [AllocationSection] {
+        let netWorth = netWorthUSD()
+
+        switch groupBy {
+        case .none:
+            return []
+
+        case .source:
+            let holdings = filteredHoldings()
+            var sourceGroups: [String: [AllocationRow]] = [:]
+            for holding in holdings {
+                let key = holding.sourceName ?? holding.sources.first ?? "Unknown"
+                sourceGroups[key, default: []].append(holding)
+            }
+
+            return sourceGroups.compactMap { sourceName, sourceHoldings in
+                var assetGroups: [String: AllocationGroupAccumulator] = [:]
+                for holding in sourceHoldings {
+                    let key = "\(holding.asset)|\(holding.assetType ?? "")"
+                    var group = assetGroups[key] ?? AllocationGroupAccumulator(
+                        asset: holding.asset, assetType: holding.assetType
+                    )
+                    group.append(holding)
+                    assetGroups[key] = group
+                }
+                let rows = assetGroups.values
+                    .map { $0.build(netWorth: netWorth) }
+                    .sorted(by: sortRows)
+
+                guard !rows.isEmpty else { return nil }
+
+                let sectionTotal = rows.reduce(Decimal.zero) { sum, row in
+                    sum + (Decimal(string: row.usdValue ?? "") ?? 0)
+                }
+                let pct = netWorth.flatMap { $0 > 0 ? (sectionTotal / $0) * 100 : nil }
+                let sourceKey = sourceHoldings.first?.sources.first ?? sourceName
+
+                return AllocationSection(
+                    id: sourceName,
+                    title: sourceName,
+                    iconName: sourceKey.sourceIconName(),
+                    iconIsSystemSymbol: false,
+                    totalUsdValue: sectionTotal,
+                    percentage: pct,
+                    rows: rows
+                )
+            }
+            .sorted { $0.totalUsdValue > $1.totalUsdValue }
+
+        case .type:
+            let rows = groupedAllocationRows()
+            var typeGroups: [String: [AllocationGroupRow]] = [:]
+            for row in rows {
+                let key = normalizeType(row.assetType) ?? "other"
+                typeGroups[key, default: []].append(row)
+            }
+
+            return typeGroups.compactMap { key, groupRows in
+                guard !groupRows.isEmpty else { return nil }
+
+                let sectionTotal = groupRows.reduce(Decimal.zero) { sum, row in
+                    sum + (Decimal(string: row.usdValue ?? "") ?? 0)
+                }
+                let pct = netWorth.flatMap { $0 > 0 ? (sectionTotal / $0) * 100 : nil }
+
+                return AllocationSection(
+                    id: key,
+                    title: typeTitle(for: key),
+                    iconName: typeSymbol(for: key),
+                    iconIsSystemSymbol: true,
+                    totalUsdValue: sectionTotal,
+                    percentage: pct,
+                    rows: groupRows
+                )
+            }
+            .sorted { $0.totalUsdValue > $1.totalUsdValue }
+        }
     }
 
     private func sortRows(_ lhs: AllocationGroupRow, _ rhs: AllocationGroupRow) -> Bool {
@@ -559,6 +767,9 @@ struct AllocationView: View {
         if AllocationSortKey(rawValue: sortKeyRaw) == nil {
             sortKeyRaw = AllocationSortKey.value.rawValue
         }
+        if GroupByMode(rawValue: groupByRaw) == nil {
+            groupByRaw = GroupByMode.none.rawValue
+        }
         ensureSelectedTypeIsValid()
     }
 
@@ -643,6 +854,16 @@ private struct AllocationGroupRow: Identifiable {
     let usdValue: String?
     let price: String?
     let percentage: String?
+}
+
+private struct AllocationSection: Identifiable {
+    let id: String
+    let title: String
+    let iconName: String?
+    let iconIsSystemSymbol: Bool
+    let totalUsdValue: Decimal
+    let percentage: Decimal?
+    let rows: [AllocationGroupRow]
 }
 
 private struct AllocationGroupAccumulator {
