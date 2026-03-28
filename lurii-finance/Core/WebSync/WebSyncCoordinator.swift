@@ -70,6 +70,7 @@ final class WebSyncCoordinator {
         "Referer": "https://www.mexc.com/earn"
     ]
     private static let mexcEarnEndpoint = "https://www.mexc.com/api/financialactivity/financial/member/positions_by_product"
+    private static let mexcProductDetailEndpoint = "https://www.mexc.com/api/financialactivity/flexible/detail"
     private static let mexcUserInfoEndpoint = "https://www.mexc.com/ucenter/api/user_info"
     private static let emcdDepositsEndpoint = "https://endpoint.emcd.io/deposit-staking/deposit/active"
     private static let emcdRatesEndpoint = "https://rate.emcd.io/statsv2?emcd=1"
@@ -314,6 +315,17 @@ final class WebSyncCoordinator {
             throw WebSyncCoordinatorError.invalidResponse("MEXC user info does not include digitalId.")
         }
 
+        // Collect financialNo values for flexible tiered positions to fetch product details.
+        var tieredIds: Set<String> = []
+        for row in rows {
+            let isFlexible = stringValue(row["financialType"])?.uppercased() != "FIXED"
+            let isTiered = (row["showAprMaxTip"] as? Bool) == true
+            if isFlexible, isTiered, let fid = stringValue(row["financialNo"]), !fid.isEmpty {
+                tieredIds.insert(fid)
+            }
+        }
+        let productDetails = await fetchMexcProductDetails(financialIds: tieredIds, headers: headers)
+
         let assets = rows.compactMap { row -> [String: Any]? in
             let assetRaw = stringValue(row["pledgeCurrency"]) ?? stringValue(row["profitCurrency"]) ?? ""
             let asset = assetRaw.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
@@ -321,8 +333,15 @@ final class WebSyncCoordinator {
             let quantity = doubleValue(row["positionQuantity"])
             let usdValue = doubleValue(row["positionUsdtQuantity"])
             let quotedApr = doubleValue(row["showApr"])
-            let effectiveApr = mexcStoredAprPercent(from: row)
             let yesterdayProfit = doubleValue(row["yesterdayProfitQuantity"])
+
+            var effectiveApr = mexcStoredAprPercent(from: row)
+            if let fid = stringValue(row["financialNo"]),
+               let detail = productDetails[fid],
+               let tieredApr = mexcTieredAprPercent(detail: detail, amount: quantity) {
+                effectiveApr = tieredApr
+            }
+
             return [
                 "symbol": asset,
                 "amount": quantity,
@@ -966,6 +985,60 @@ final class WebSyncCoordinator {
             return effectiveApr
         }
         return doubleValue(asset["quotedAprPercent"])
+    }
+
+    private func fetchMexcProductDetails(
+        financialIds: Set<String>,
+        headers: [String: String]
+    ) async -> [String: [String: Any]] {
+        var lookup: [String: [String: Any]] = [:]
+        for fid in financialIds {
+            guard var urlComponents = URLComponents(string: Self.mexcProductDetailEndpoint) else { continue }
+            urlComponents.queryItems = [URLQueryItem(name: "financialId", value: fid)]
+            guard let url = urlComponents.url else { continue }
+            do {
+                let result = try await performJSONRequest(url: url, method: "GET", headers: headers)
+                guard let payload = result as? [String: Any],
+                      intValue(payload["code"]) == 0,
+                      let data = payload["data"] as? [String: Any] else { continue }
+                lookup[fid] = data
+            } catch {
+                continue
+            }
+        }
+        return lookup
+    }
+
+    private func mexcTieredAprPercent(detail: [String: Any], amount: Double) -> Double? {
+        guard amount > 0 else { return nil }
+        guard let tieredFlag = detail["subsidyTieredFlag"] as? Bool, tieredFlag else { return nil }
+        let baseApr = doubleValue(detail["baseApr"])
+        guard let tiers = detail["tieredSubsidyApr"] as? [[String: Any]], !tiers.isEmpty else { return nil }
+
+        let sortedTiers = tiers.sorted {
+            doubleValue($0["startQuantity"]) < doubleValue($1["startQuantity"])
+        }
+
+        var weightedSum = 0.0
+        var covered = 0.0
+        for tier in sortedTiers {
+            let start = doubleValue(tier["startQuantity"])
+            let end = doubleOptionalValue(tier["endQuantity"]) ?? amount
+            let subsidyApr = doubleValue(tier["apr"])
+            let tierApr = baseApr + subsidyApr
+
+            let portion = min(amount, end) - start
+            guard portion > 0 else { continue }
+            weightedSum += portion * tierApr
+            covered += portion
+        }
+
+        guard covered > 0 else { return nil }
+        let uncovered = amount - covered
+        if uncovered > 0 {
+            weightedSum += uncovered * baseApr
+        }
+        return weightedSum / amount
     }
 
     private func mexcStoredAprPercent(from row: [String: Any]) -> Double {
