@@ -313,7 +313,7 @@ private struct RuleEditorItem: Identifiable {
 
 #Preview {
     SourceDetailSheet(
-        source: SourceDTO(name: "Coinbase", type: "exchange", credentials: ["apiKey": "••••"], enabled: true),
+        source: SourceDTO(name: "Coinbase", type: "exchange", credentials: ["apiKey": "••••"], enabled: true, createdAt: nil),
         fields: [SourceTypeField(name: "apiKey", prompt: "API Key", required: true, secret: true, tip: nil)],
         viewModel: SourcesViewModel()
     )

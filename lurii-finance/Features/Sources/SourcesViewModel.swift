@@ -50,7 +50,7 @@ final class SourcesViewModel: ObservableObject {
 
     func toggleSource(_ source: SourceDTO, enabled: Bool) {
         if let index = sources.firstIndex(where: { $0.id == source.id }) {
-            sources[index] = SourceDTO(name: source.name, type: source.type, credentials: source.credentials, enabled: enabled)
+            sources[index] = SourceDTO(name: source.name, type: source.type, credentials: source.credentials, enabled: enabled, createdAt: source.createdAt)
         }
 
         Task {

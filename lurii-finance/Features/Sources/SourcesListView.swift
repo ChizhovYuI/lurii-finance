@@ -1,5 +1,10 @@
 import SwiftUI
 
+enum SourceSortOption: String, CaseIterable {
+    case name = "Name"
+    case dateAdded = "Date Added"
+}
+
 struct SourcesListView: View {
     @EnvironmentObject private var appState: AppState
     @StateObject private var viewModel = SourcesViewModel()
@@ -9,6 +14,7 @@ struct SourcesListView: View {
     @State private var isDeletingSource = false
     @State private var deleteErrorMessage: String?
     @State private var filter = ""
+    @AppStorage("sourcesSortOption") private var sortOption: SourceSortOption = .name
 
     @Namespace private var sourcesNamespace
 
@@ -25,7 +31,13 @@ struct SourcesListView: View {
     }
 
     private var filteredSources: [SourceDTO] {
-        viewModel.sources.filter(sourceMatches)
+        let filtered = viewModel.sources.filter(sourceMatches)
+        switch sortOption {
+        case .name:
+            return filtered.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        case .dateAdded:
+            return filtered
+        }
     }
 
     private var localTokens: [String] {
@@ -63,6 +75,9 @@ struct SourcesListView: View {
         }
         .navigationTitle("Sources")
         .toolbar {
+            ToolbarItem(placement: .automatic) {
+                sortPicker
+            }
             ToolbarItem(placement: .automatic) {
                 searchField
                     .frame(width: 200)
@@ -161,6 +176,27 @@ struct SourcesListView: View {
         .frame(height: controlSize)
         .glassEffect(.regular, in: Capsule())
         .glassEffectID("sources-search", in: sourcesNamespace)
+    }
+
+    private var sortPicker: some View {
+        Menu {
+            ForEach(SourceSortOption.allCases, id: \.self) { option in
+                Button {
+                    sortOption = option
+                } label: {
+                    if option == sortOption {
+                        Label(option.rawValue, systemImage: "checkmark")
+                    } else {
+                        Text(option.rawValue)
+                    }
+                }
+            }
+        } label: {
+            Image(systemName: "arrow.up.arrow.down")
+                .foregroundStyle(.secondary)
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
     }
 
     private var sourcesContent: some View {

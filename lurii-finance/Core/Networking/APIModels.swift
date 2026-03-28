@@ -82,6 +82,12 @@ struct SourceDTO: Codable, Identifiable {
     let type: String
     let credentials: [String: String]
     let enabled: Bool
+    let createdAt: String?
+
+    enum CodingKeys: String, CodingKey {
+        case name, type, credentials, enabled
+        case createdAt = "created_at"
+    }
 }
 
 struct SourceCreateRequest: Codable {
