@@ -100,7 +100,6 @@ struct EarnSummaryView: View {
 
                     if groupBy == .none {
                         positionsTable(summary)
-                        idleAssetsTable(summary)
                     } else {
                         let sections = earnSections(summary)
                         if sections.isEmpty {
@@ -112,6 +111,8 @@ struct EarnSummaryView: View {
                             }
                         }
                     }
+
+                    idleAssetsTable(summary)
                 }
             } else {
                 EmptyStateView(title: "No earn data", message: "Yield-bearing positions will appear here once available.")
@@ -175,6 +176,7 @@ struct EarnSummaryView: View {
             )
             .frame(minHeight: 120)
         }
+        .frame(width: positionsTableMinWidth + DesignTokens.blockPadding * 2)
     }
 
     private func positionsTable(_ summary: EarnSummaryResponse) -> some View {
@@ -213,6 +215,7 @@ struct EarnSummaryView: View {
                 }
             }
         }
+        .frame(width: positionsTableMinWidth)
         .padding(DesignTokens.blockPadding)
         .background(.white, in: .rect(cornerRadius: DesignTokens.blockCornerRadius))
         .glassEffect(in: .rect(cornerRadius: DesignTokens.blockCornerRadius))
@@ -272,6 +275,7 @@ struct EarnSummaryView: View {
                     }
                 }
             }
+            .frame(width: positionsTableMinWidth)
             .padding(DesignTokens.blockPadding)
             .background(.white, in: .rect(cornerRadius: DesignTokens.blockCornerRadius))
             .glassEffect(in: .rect(cornerRadius: DesignTokens.blockCornerRadius))
@@ -282,13 +286,42 @@ struct EarnSummaryView: View {
         }
     }
 
+    // MARK: - Column widths
+
+    private let earnColAsset: CGFloat = 80
+    private let earnColSource: CGFloat = 50
+    private let earnColAmount: CGFloat = 100
+    private let earnColPrice: CGFloat = 100
+    private let earnColValue: CGFloat = 100
+    private let earnColApy: CGFloat = 80
+    private let earnColSettlement: CGFloat = 80
+    private let earnColEdit: CGFloat = 24
+
+    private var isSourceColumnVisible: Bool {
+        groupBy != .source
+    }
+
+    private var positionsTableMinWidth: CGFloat {
+        var w = earnColAsset + earnColAmount + earnColPrice + earnColValue + earnColApy + earnColSettlement + earnColEdit
+        if isSourceColumnVisible { w += earnColSource }
+        w += DesignTokens.blockRowHorizontalPadding * 2
+        return w
+    }
+
+    private var idleTableMinWidth: CGFloat {
+        var w = earnColAsset + earnColAmount + earnColPrice + earnColValue
+        if isSourceColumnVisible { w += earnColSource }
+        w += DesignTokens.blockRowHorizontalPadding * 2
+        return w
+    }
+
     private var idleHeaderRow: some View {
-        HStack(spacing: 12) {
-            headerCell("Asset")
-            headerCell("Source")
-            headerCell("Amount", alignment: .trailing)
-            headerCell("Price", alignment: .trailing)
-            headerCell("Value", alignment: .trailing)
+        HStack(spacing: 0) {
+            headerCell("Asset", width: earnColAsset)
+            headerCell("Source", width: earnColSource)
+            headerCell("Amount", width: earnColAmount, alignment: .trailing)
+            headerCell("Price", width: earnColPrice, alignment: .trailing)
+            headerCell("Value", width: earnColValue, alignment: .trailing)
         }
         .padding(.horizontal, DesignTokens.blockRowHorizontalPadding)
         .font(.caption)
@@ -297,31 +330,32 @@ struct EarnSummaryView: View {
 
     private func idleRow(_ position: EarnPosition) -> some View {
         let hidden = appState.hideBalance
-        return HStack(spacing: 12) {
-            rowCell(position.asset)
-            sourceCell(position.source)
+        return HStack(spacing: 0) {
+            rowCell(position.asset, width: earnColAsset)
+            sourceCell(position.source, width: earnColSource)
             let amountText = hidden ? "••••" : (ValueFormatters.number(from: position.amount) ?? position.amount ?? "—")
-            rowCell(amountText, alignment: .trailing)
+            rowCell(amountText, width: earnColAmount, alignment: .trailing)
             let priceText = ValueFormatters.currency(from: position.price, code: "usd") ?? position.price ?? "—"
-            rowCell(priceText, alignment: .trailing)
+            rowCell(priceText, width: earnColPrice, alignment: .trailing)
             let valueText = hidden ? "••••" : (ValueFormatters.currency(from: position.usdValue, code: "usd") ?? position.usdValue ?? "—")
-            rowCell(valueText, alignment: .trailing)
+            rowCell(valueText, width: earnColValue, alignment: .trailing)
         }
         .padding(.horizontal, DesignTokens.blockRowHorizontalPadding)
         .font(.subheadline)
     }
 
     private var headerRow: some View {
-        HStack(spacing: 12) {
-            headerCell("Asset")
-            headerCell("Source")
-            headerCell("Amount", alignment: .trailing)
-            headerCell("Price", alignment: .trailing)
-            headerCell("Value", alignment: .trailing)
-            headerCell("APY", alignment: .trailing)
-            headerCell("Settlement", alignment: .trailing)
-            // Spacer for edit button column
-            Text("").frame(width: 24)
+        HStack(spacing: 0) {
+            headerCell("Asset", width: earnColAsset)
+            if isSourceColumnVisible {
+                headerCell("Source", width: earnColSource)
+            }
+            headerCell("Amount", width: earnColAmount, alignment: .trailing)
+            headerCell("Price", width: earnColPrice, alignment: .trailing)
+            headerCell("Value", width: earnColValue, alignment: .trailing)
+            headerCell("APY", width: earnColApy, alignment: .trailing)
+            headerCell("Settlement", width: earnColSettlement, alignment: .trailing)
+            Text("").frame(width: earnColEdit)
         }
         .padding(.horizontal, DesignTokens.blockRowHorizontalPadding)
         .font(.caption)
@@ -330,18 +364,20 @@ struct EarnSummaryView: View {
 
     private func positionRow(_ position: EarnPosition) -> some View {
         let hidden = appState.hideBalance
-        return HStack(spacing: 12) {
-            rowCell(position.asset)
-            sourceCell(position.source)
+        return HStack(spacing: 0) {
+            rowCell(position.asset, width: earnColAsset)
+            if isSourceColumnVisible {
+                sourceCell(position.source, width: earnColSource)
+            }
             let amountText = hidden ? "••••" : (ValueFormatters.number(from: position.amount) ?? position.amount ?? "—")
-            rowCell(amountText, alignment: .trailing)
+            rowCell(amountText, width: earnColAmount, alignment: .trailing)
             let priceText = ValueFormatters.currency(from: position.price, code: "usd") ?? position.price ?? "—"
-            rowCell(priceText, alignment: .trailing)
+            rowCell(priceText, width: earnColPrice, alignment: .trailing)
             let valueText = hidden ? "••••" : (ValueFormatters.currency(from: position.usdValue, code: "usd") ?? position.usdValue ?? "—")
-            rowCell(valueText, alignment: .trailing)
+            rowCell(valueText, width: earnColValue, alignment: .trailing)
             let apyText = ValueFormatters.percent(from: position.apy) ?? position.apy ?? "—"
-            rowCell(apyText, alignment: .trailing)
-            rowCell(formatSettlement(position.settlementAt), alignment: .trailing)
+            rowCell(apyText, width: earnColApy, alignment: .trailing)
+            rowCell(formatSettlement(position.settlementAt), width: earnColSettlement, alignment: .trailing)
 
             if position.earnCategory != nil {
                 Button {
@@ -352,9 +388,9 @@ struct EarnSummaryView: View {
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
-                .frame(width: 24)
+                .frame(width: earnColEdit)
             } else {
-                Text("").frame(width: 24)
+                Text("").frame(width: earnColEdit)
             }
         }
         .padding(.horizontal, DesignTokens.blockRowHorizontalPadding)
@@ -371,18 +407,18 @@ struct EarnSummaryView: View {
         return display.string(from: date)
     }
 
-    private func headerCell(_ text: String, alignment: Alignment = .leading) -> some View {
+    private func headerCell(_ text: String, width: CGFloat, alignment: Alignment = .leading) -> some View {
         Text(text)
-            .frame(maxWidth: .infinity, alignment: alignment)
+            .frame(width: width, alignment: alignment)
     }
 
-    private func rowCell(_ text: String, alignment: Alignment = .leading) -> some View {
+    private func rowCell(_ text: String, width: CGFloat, alignment: Alignment = .leading) -> some View {
         Text(text)
-            .frame(maxWidth: .infinity, alignment: alignment)
+            .frame(width: width, alignment: alignment)
     }
 
     @ViewBuilder
-    private func sourceCell(_ source: String) -> some View {
+    private func sourceCell(_ source: String, width: CGFloat) -> some View {
         if let iconName = source.sourceIconName() {
             Image(iconName)
                 .resizable()
@@ -390,9 +426,9 @@ struct EarnSummaryView: View {
                 .frame(width: 24, height: 24)
                 .clipShape(Circle())
                 .glassEffect(.regular, in: Circle())
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(width: width, alignment: .leading)
         } else {
-            rowCell(source)
+            rowCell(source, width: width)
         }
     }
 
@@ -460,36 +496,25 @@ struct EarnSummaryView: View {
                 return l > r
             }
         )
-        let allIdle = filterPositions(summary.idleAssets ?? [])
 
-        let totalPortfolioValue: Decimal = {
-            let posValue = allPositions.reduce(Decimal.zero) { $0 + (Decimal(string: $1.usdValue ?? "") ?? 0) }
-            let idleValue = allIdle.reduce(Decimal.zero) { $0 + (Decimal(string: $1.usdValue ?? "") ?? 0) }
-            return posValue + idleValue
-        }()
+        let totalValue = allPositions.reduce(Decimal.zero) { $0 + (Decimal(string: $1.usdValue ?? "") ?? 0) }
 
         switch groupBy {
         case .none:
             return []
 
         case .source:
-            var groups: [String: (positions: [EarnPosition], idle: [EarnPosition])] = [:]
+            var groups: [String: [EarnPosition]] = [:]
             for p in allPositions {
                 let key = p.sourceName ?? p.source
-                groups[key, default: ([], [])].positions.append(p)
-            }
-            for p in allIdle {
-                let key = p.sourceName ?? p.source
-                groups[key, default: ([], [])].idle.append(p)
+                groups[key, default: []].append(p)
             }
 
-            return groups.compactMap { key, items in
-                guard !items.positions.isEmpty || !items.idle.isEmpty else { return nil }
-                let total = (items.positions + items.idle).reduce(Decimal.zero) {
-                    $0 + (Decimal(string: $1.usdValue ?? "") ?? 0)
-                }
-                let pct = totalPortfolioValue > 0 ? (total / totalPortfolioValue) * 100 : nil
-                let sourceKey = items.positions.first?.source ?? items.idle.first?.source ?? key
+            return groups.compactMap { key, positions in
+                guard !positions.isEmpty else { return nil }
+                let total = positions.reduce(Decimal.zero) { $0 + (Decimal(string: $1.usdValue ?? "") ?? 0) }
+                let pct = totalValue > 0 ? (total / totalValue) * 100 : nil
+                let sourceKey = positions.first?.source ?? key
                 return EarnSection(
                     id: key,
                     title: key,
@@ -497,29 +522,22 @@ struct EarnSummaryView: View {
                     iconIsSystemSymbol: false,
                     totalUsdValue: total,
                     percentage: pct,
-                    positions: items.positions,
-                    idleAssets: items.idle
+                    positions: positions
                 )
             }
             .sorted { $0.totalUsdValue > $1.totalUsdValue }
 
         case .type:
-            var groups: [String: (positions: [EarnPosition], idle: [EarnPosition])] = [:]
+            var groups: [String: [EarnPosition]] = [:]
             for p in allPositions {
                 let key = normalizeType(p.assetType) ?? "other"
-                groups[key, default: ([], [])].positions.append(p)
-            }
-            for p in allIdle {
-                let key = normalizeType(p.assetType) ?? "other"
-                groups[key, default: ([], [])].idle.append(p)
+                groups[key, default: []].append(p)
             }
 
-            return groups.compactMap { key, items in
-                guard !items.positions.isEmpty || !items.idle.isEmpty else { return nil }
-                let total = (items.positions + items.idle).reduce(Decimal.zero) {
-                    $0 + (Decimal(string: $1.usdValue ?? "") ?? 0)
-                }
-                let pct = totalPortfolioValue > 0 ? (total / totalPortfolioValue) * 100 : nil
+            return groups.compactMap { key, positions in
+                guard !positions.isEmpty else { return nil }
+                let total = positions.reduce(Decimal.zero) { $0 + (Decimal(string: $1.usdValue ?? "") ?? 0) }
+                let pct = totalValue > 0 ? (total / totalValue) * 100 : nil
                 return EarnSection(
                     id: key,
                     title: typeTitle(for: key),
@@ -527,8 +545,7 @@ struct EarnSummaryView: View {
                     iconIsSystemSymbol: true,
                     totalUsdValue: total,
                     percentage: pct,
-                    positions: items.positions,
-                    idleAssets: items.idle
+                    positions: positions
                 )
             }
             .sorted { $0.totalUsdValue > $1.totalUsdValue }
@@ -567,43 +584,20 @@ struct EarnSummaryView: View {
             if expanded {
                 Divider()
 
-                if !section.positions.isEmpty {
+                if section.positions.isEmpty {
+                    Text("No positions")
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, DesignTokens.blockRowHorizontalPadding)
+                } else {
                     headerRow
 
                     ForEach(section.positions) { position in
                         positionRow(position)
                     }
                 }
-
-                if !section.idleAssets.isEmpty {
-                    if !section.positions.isEmpty {
-                        Divider()
-                    }
-
-                    HStack(spacing: 6) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(DesignTokens.warning)
-                        Text("Idle")
-                            .font(.subheadline.weight(.medium))
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding(.horizontal, DesignTokens.blockRowHorizontalPadding)
-
-                    idleHeaderRow
-
-                    ForEach(section.idleAssets) { position in
-                        idleRow(position)
-                    }
-                }
-
-                if section.positions.isEmpty && section.idleAssets.isEmpty {
-                    Text("No positions")
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, DesignTokens.blockRowHorizontalPadding)
-                }
             }
         }
+        .frame(width: positionsTableMinWidth)
         .padding(DesignTokens.blockPadding)
         .background(.white, in: .rect(cornerRadius: DesignTokens.blockCornerRadius))
         .glassEffect(in: .rect(cornerRadius: DesignTokens.blockCornerRadius))
@@ -652,7 +646,6 @@ private struct EarnSection: Identifiable {
     let totalUsdValue: Decimal
     let percentage: Decimal?
     let positions: [EarnPosition]
-    let idleAssets: [EarnPosition]
 }
 
 private struct EarnSummaryMetricCard: View {

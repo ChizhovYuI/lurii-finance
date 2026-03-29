@@ -132,14 +132,11 @@ struct AllocationView: View {
         } else if groupBy == .none {
             ScrollView(.vertical) {
                 allocationTable
-                    .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.bottom, 12)
             }
             .scrollIndicators(.visible)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .padding(.leading, DesignTokens.blockPadding)
-            .padding(.trailing, 8)
-            .padding(.top, 16)
+            .frame(minWidth: tableMinWidth, maxWidth: tableMinWidth, maxHeight: .infinity)
+            .padding(DesignTokens.blockPadding)
             .background(.white, in: .rect(cornerRadius: DesignTokens.blockCornerRadius))
             .glassEffect(in: .rect(cornerRadius: DesignTokens.blockCornerRadius))
             .overlay(
@@ -148,7 +145,7 @@ struct AllocationView: View {
             )
         } else {
             allocationTable
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(minWidth: tableMinWidth, maxWidth: tableMinWidth)
         }
     }
 
@@ -362,6 +359,7 @@ struct AllocationView: View {
                 }
             }
         }
+        .frame(width: tableMinWidth)
         .padding(DesignTokens.blockPadding)
         .background(.white, in: .rect(cornerRadius: DesignTokens.blockCornerRadius))
         .glassEffect(in: .rect(cornerRadius: DesignTokens.blockCornerRadius))
@@ -372,68 +370,67 @@ struct AllocationView: View {
     }
 
     private var allocationHeader: some View {
-        HStack(spacing: 12) {
-            headerCell("Asset")
+        HStack(spacing: 0) {
+            headerCell("Asset", width: assetColumnWidth)
             if isColumnVisible(.source) {
-                headerCell("Source")
+                headerCell("Source", width: columnWidth(.source))
             }
             if isColumnVisible(.amount) {
-                headerCell("Amount", alignment: .trailing)
+                headerCell("Amount", width: columnWidth(.amount), alignment: .trailing)
             }
             if isColumnVisible(.price) {
-                headerCell("Price", alignment: .trailing)
+                headerCell("Price", width: columnWidth(.price), alignment: .trailing)
             }
             if isColumnVisible(.value) {
-                headerCell("Value", alignment: .trailing)
+                headerCell("Value", width: columnWidth(.value), alignment: .trailing)
             }
             if isColumnVisible(.percentage) {
-                headerCell("% Of Net Value", alignment: .trailing)
+                headerCell("% Of Net Value", width: columnWidth(.percentage), alignment: .trailing)
             }
             if isColumnVisible(.type) {
-                headerCell("Type", alignment: .trailing)
+                headerCell("Type", width: columnWidth(.type), alignment: .trailing)
             }
         }
-        .padding(.leading, DesignTokens.blockRowHorizontalPadding)
-        .padding(.trailing, tableRightScrollPadding)
+        .padding(.horizontal, DesignTokens.blockRowHorizontalPadding)
         .font(.caption)
         .foregroundStyle(.secondary)
     }
 
     private func allocationRow(_ row: AllocationGroupRow) -> some View {
         let hidden = appState.hideBalance
-        return HStack(spacing: 12) {
-            rowCell(row.asset)
+        return HStack(spacing: 0) {
+            rowCell(row.asset, width: assetColumnWidth)
 
             if isColumnVisible(.source) {
                 sourceCell(sources: row.sources, asset: row.asset)
+                    .frame(width: columnWidth(.source), alignment: .leading)
             }
 
             if isColumnVisible(.amount) {
                 let amountText = hidden ? "••••" : (ValueFormatters.number(from: row.amount) ?? row.amount ?? "—")
-                rowCell(amountText, alignment: .trailing)
+                rowCell(amountText, width: columnWidth(.amount), alignment: .trailing)
             }
 
             if isColumnVisible(.price) {
                 let priceText = ValueFormatters.currency(from: row.price, code: "usd") ?? row.price ?? "—"
-                rowCell(priceText, alignment: .trailing)
+                rowCell(priceText, width: columnWidth(.price), alignment: .trailing)
             }
 
             if isColumnVisible(.value) {
                 let valueText = hidden ? "••••" : (ValueFormatters.currency(from: row.usdValue, code: "usd") ?? row.usdValue ?? "—")
-                rowCell(valueText, alignment: .trailing)
+                rowCell(valueText, width: columnWidth(.value), alignment: .trailing)
             }
 
             if isColumnVisible(.percentage) {
                 let percentText = hidden ? "••••" : (ValueFormatters.percentFromPercentValue(row.percentage) ?? row.percentage ?? "—")
-                rowCell(percentText, alignment: .trailing)
+                rowCell(percentText, width: columnWidth(.percentage), alignment: .trailing)
             }
 
             if isColumnVisible(.type) {
-                typeIconCell(row.assetType)
+                typeIconCell(row.assetType, width: columnWidth(.type))
             }
         }
-        .padding(.leading, DesignTokens.blockRowHorizontalPadding)
-        .padding(.trailing, tableRightScrollPadding)
+        .padding(.horizontal, DesignTokens.blockRowHorizontalPadding)
         .font(.subheadline)
     }
 
@@ -449,10 +446,9 @@ struct AllocationView: View {
         }
 
         if items.isEmpty {
-            rowCell(sourcesText(sources))
+            Text(sourcesText(sources))
         } else {
             SourceIconsPopover(items: items)
-                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
@@ -461,21 +457,42 @@ struct AllocationView: View {
         return joined.isEmpty ? "—" : joined
     }
 
-    private func headerCell(_ text: String, alignment: Alignment = .leading) -> some View {
-        Text(text)
-            .frame(maxWidth: .infinity, alignment: alignment)
+    private func columnWidth(_ column: AllocationColumn) -> CGFloat {
+        switch column {
+        case .source: 80
+        case .amount: 100
+        case .price: 100
+        case .value: 100
+        case .percentage: 100
+        case .type: 40
+        }
     }
 
-    private func rowCell(_ text: String, alignment: Alignment = .leading) -> some View {
-        Text(text)
-            .frame(maxWidth: .infinity, alignment: alignment)
+    private let assetColumnWidth: CGFloat = 80
+
+    private var tableMinWidth: CGFloat {
+        var width = assetColumnWidth + DesignTokens.blockRowHorizontalPadding * 2
+        for column in AllocationColumn.allCases where isColumnVisible(column) {
+            width += columnWidth(column)
+        }
+        return width
     }
 
-    private func typeIconCell(_ rawType: String?) -> some View {
+    private func headerCell(_ text: String, width: CGFloat, alignment: Alignment = .leading) -> some View {
+        Text(text)
+            .frame(width: width, alignment: alignment)
+    }
+
+    private func rowCell(_ text: String, width: CGFloat, alignment: Alignment = .leading) -> some View {
+        Text(text)
+            .frame(width: width, alignment: alignment)
+    }
+
+    private func typeIconCell(_ rawType: String?, width: CGFloat) -> some View {
         Image(systemName: typeSymbol(for: rawType))
             .symbolRenderingMode(.monochrome)
             .font(.system(size: 14, weight: .semibold))
-            .frame(maxWidth: .infinity, alignment: .trailing)
+            .frame(width: width, alignment: .trailing)
             .accessibilityLabel(Text(typeTitle(for: rawType)))
     }
 
@@ -760,7 +777,9 @@ struct AllocationView: View {
     }
 
     private func isColumnVisible(_ column: AllocationColumn) -> Bool {
-        visibleColumns.contains(column)
+        if column == .source && groupBy == .source { return false }
+        if column == .type && groupBy == .type { return false }
+        return visibleColumns.contains(column)
     }
 
     private func sanitizePersistedState() {
