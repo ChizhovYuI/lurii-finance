@@ -65,11 +65,11 @@ struct AllocationView: View {
                     .font(.title)
                 contentContainer
             }
+            .padding(.leading, DesignTokens.pageContentPadding)
+            .padding(.trailing, DesignTokens.pageContentTrailingPadding)
+            .padding(.top, DesignTokens.pageContentPadding)
+            .padding(.bottom, 8)
             .frame(maxWidth: .infinity, alignment: .topLeading)
-        .padding(.leading, DesignTokens.pageContentPadding)
-        .padding(.trailing, DesignTokens.pageContentTrailingPadding)
-        .padding(.top, DesignTokens.pageContentPadding)
-        .padding(.bottom, 8)
         }
         .navigationTitle("Allocation")
         .toolbar {
@@ -135,7 +135,8 @@ struct AllocationView: View {
                     .padding(.bottom, 12)
             }
             .scrollIndicators(.visible)
-            .frame(minWidth: tableMinWidth, maxWidth: tableMinWidth, maxHeight: .infinity)
+            .frame(width: tableMinWidth)
+            .frame(maxHeight: .infinity)
             .padding(DesignTokens.blockPadding)
             .background(.white, in: .rect(cornerRadius: DesignTokens.blockCornerRadius))
             .glassEffect(in: .rect(cornerRadius: DesignTokens.blockCornerRadius))
@@ -145,7 +146,7 @@ struct AllocationView: View {
             )
         } else {
             allocationTable
-                .frame(minWidth: tableMinWidth, maxWidth: tableMinWidth)
+                .frame(width: tableMinWidth)
         }
     }
 
