@@ -918,47 +918,36 @@ private struct AllocationGroupAccumulator {
 
 private struct SourceIconsPopover: View {
     let items: [SourceIconItem]
-    @State private var presentedIndex: Int? = nil
 
     var body: some View {
-        ZStack(alignment: .leading) {
-            ForEach(Array(items.enumerated()), id: \.offset) { index, item in
-                Button {
-                    if presentedIndex == index {
-                        presentedIndex = nil
-                    } else {
-                        presentedIndex = nil
-                        DispatchQueue.main.async {
-                            presentedIndex = index
-                        }
-                    }
-                } label: {
-                    Image(item.iconName)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: 24, height: 24)
-                        .clipShape(Circle())
-                        .allocationGlassBackground(in: Circle())
-                }
-                .buttonStyle(.plain)
-                .offset(x: CGFloat(index) * 18)
-                .popover(isPresented: Binding(
-                    get: { presentedIndex == index },
-                    set: { isPresented in
-                        presentedIndex = isPresented ? index : nil
-                    }
-                )) {
-                    TooltipCard(text: item.tooltip)
-                        .presentationBackground(.clear)
-                }
+        HStack(spacing: -6) {
+            ForEach(items) { item in
+                SourceIconWithHover(item: item)
             }
         }
-        .frame(width: totalWidth, height: 24, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
+}
 
-    private var totalWidth: CGFloat {
-        let count = max(items.count, 1)
-        return 24 + CGFloat(count - 1) * 18
+private struct SourceIconWithHover: View {
+    let item: SourceIconItem
+    @State private var isHovered = false
+
+    var body: some View {
+        Image(item.iconName)
+            .resizable()
+            .scaledToFill()
+            .frame(width: 24, height: 24)
+            .clipShape(Circle())
+            .allocationGlassBackground(in: Circle())
+            .overlay(
+                Circle()
+                    .stroke(Color.accentColor.opacity(isHovered ? 0.8 : 0), lineWidth: 2)
+            )
+            .scaleEffect(isHovered ? 1.15 : 1.0)
+            .animation(.easeInOut(duration: 0.15), value: isHovered)
+            .onHover { isHovered = $0 }
+            .help(item.tooltip)
     }
 }
 
