@@ -51,6 +51,7 @@ struct TransactionsListView: View {
                 } else {
                     transactionTable
                         .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.leading, DesignTokens.pageContentPadding)
                 }
 
                 if let msg = viewModel.categorizationMessage {
