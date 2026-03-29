@@ -67,7 +67,7 @@ struct SourcesListView: View {
 
                 content
                     .fixedSize(horizontal: true, vertical: false)
-                    .frame(maxWidth: .infinity)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
             .padding(.horizontal, DesignTokens.pageContentPadding)
             .padding(.top, DesignTokens.pageContentPadding)

@@ -50,7 +50,7 @@ struct TransactionsListView: View {
                     )
                 } else {
                     transactionTable
-                        .frame(maxWidth: .infinity)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
                 if let msg = viewModel.categorizationMessage {
