@@ -85,11 +85,6 @@ struct AllocationView: View {
                     expandAllToggle
                 }
             }
-            if groupBy != .type {
-                ToolbarItem(placement: .automatic) {
-                    typeTabsBar
-                }
-            }
             ToolbarItem(placement: .automatic) {
                 controlsMenu
             }
@@ -113,11 +108,8 @@ struct AllocationView: View {
                 viewModel.load()
             }
         }
-        .onChange(of: groupByRaw) { _, newValue in
+        .onChange(of: groupByRaw) { _, _ in
             expandedSections = []
-            if GroupByMode(rawValue: newValue) == .type {
-                selectedType = "all"
-            }
         }
     }
 
@@ -790,7 +782,7 @@ struct AllocationView: View {
         if GroupByMode(rawValue: groupByRaw) == nil {
             groupByRaw = GroupByMode.none.rawValue
         }
-        ensureSelectedTypeIsValid()
+        selectedType = "all"
     }
 
     private func ensureSelectedTypeIsValid() {
