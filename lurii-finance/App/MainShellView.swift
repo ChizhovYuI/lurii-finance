@@ -8,8 +8,8 @@ struct MainShellView: View {
     @State private var cashEntryErrorMessage: String?
     @State private var cashManualState: CashManualState?
     @State private var showCashSheet = false
-    private let primarySections: [AppState.AppSection] = [.dashboard, .allocation, .earn, .transactions, .reports]
-    private let settingsSections: [AppState.AppSection] = [.sources, .aiProvider, .aiContext, .about, .changelog]
+    private let primarySections: [AppState.AppSection] = [.dashboard, .allocation, .earn, .transactions]
+    private let settingsSections: [AppState.AppSection] = [.sources, .about, .changelog]
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
@@ -42,14 +42,8 @@ struct MainShellView: View {
                     EarnSummaryView()
                 case .transactions:
                     TransactionsListView()
-                case .reports:
-                    WeeklyReportView()
                 case .sources:
                     SourcesListView()
-                case .aiProvider:
-                    AIProviderSettingsView()
-                case .aiContext:
-                    AIContextSettingsView()
                 case .about:
                     AboutSettingsView()
                 case .changelog:

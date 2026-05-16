@@ -26,10 +26,7 @@ final class AppState: ObservableObject {
         case allocation
         case earn
         case transactions
-        case reports
         case sources
-        case aiProvider
-        case aiContext
         case about
         case changelog
 
@@ -45,14 +42,8 @@ final class AppState: ObservableObject {
                 return "Earn"
             case .transactions:
                 return "Transactions"
-            case .reports:
-                return "Reports"
             case .sources:
                 return "Sources"
-            case .aiProvider:
-                return "AI Provider"
-            case .aiContext:
-                return "AI Context"
             case .about:
                 return "About"
             case .changelog:
@@ -70,14 +61,8 @@ final class AppState: ObservableObject {
                 return "percent"
             case .transactions:
                 return "list.bullet.rectangle"
-            case .reports:
-                return "doc.text"
             case .sources:
                 return "tray.full"
-            case .aiProvider:
-                return "sparkles"
-            case .aiContext:
-                return "text.quote"
             case .about:
                 return "info.circle"
             case .changelog:
@@ -91,10 +76,6 @@ final class AppState: ObservableObject {
     @Published var collecting: Bool = false
     @Published var collectionProgress: Double = 0
     @Published var collectionMessage: String = ""
-    @Published var generatingCommentary: Bool = false
-    @Published var commentaryCompletedSections: Int = 0
-    @Published var commentaryTotalSections: Int = 0
-    @Published var commentaryCurrentSection: String?
     @Published var updateStatus: String = "idle"
     @Published var updateInstalling: Bool = false
     @Published var updateProgress: Double = 0
@@ -189,7 +170,6 @@ final class AppState: ObservableObject {
         eventStreamClient.onReconnect = { [weak self] in
             Task { @MainActor in
                 await self?.syncCollectStatus()
-                await self?.syncCommentaryStatus()
                 await self?.syncUpdateStatus()
                 await self?.runWebSyncDailyIfNeeded()
             }
@@ -213,11 +193,6 @@ final class AppState: ObservableObject {
         guard let (data, _) = try? await URLSession.shared.data(from: url),
               let status = try? JSONDecoder().decode(CollectStatus.self, from: data) else { return }
         collecting = status.collecting
-    }
-
-    func syncCommentaryStatus() async {
-        guard let status = try? await APIClient.shared.getCommentaryStatus() else { return }
-        applyCommentaryStatus(status)
     }
 
     func checkForUpdates() async {
@@ -413,48 +388,6 @@ final class AppState: ObservableObject {
             }
         case "snapshot_updated":
             NotificationCenter.default.post(name: .snapshotUpdated, object: nil)
-        case "commentary_started":
-            let completedSections = payload["completed_sections"] as? Int ?? 0
-            let totalSections = payload["total_sections"] as? Int ?? 0
-            let currentSection = payload["current_section"] as? String
-            Task { @MainActor in
-                generatingCommentary = true
-                commentaryCompletedSections = completedSections
-                commentaryTotalSections = totalSections
-                commentaryCurrentSection = currentSection
-            }
-        case "commentary_progress":
-            let completedSections = payload["completed_sections"] as? Int ?? 0
-            let totalSections = payload["total_sections"] as? Int ?? 0
-            let currentSection = payload["current_section"] as? String
-            Task { @MainActor in
-                generatingCommentary = true
-                commentaryCompletedSections = completedSections
-                commentaryTotalSections = totalSections
-                commentaryCurrentSection = currentSection
-            }
-        case "commentary_completed":
-            Task { @MainActor in
-                generatingCommentary = false
-                commentaryCompletedSections = 0
-                commentaryTotalSections = 0
-                commentaryCurrentSection = nil
-            }
-            // Parse the commentary from the event payload if available
-            var commentary: AICommentary?
-            if let jsonData = try? JSONSerialization.data(withJSONObject: payload) {
-                let decoder = JSONDecoder()
-                decoder.keyDecodingStrategy = .convertFromSnakeCase
-                commentary = try? decoder.decode(AICommentary.self, from: jsonData)
-            }
-            NotificationCenter.default.post(name: .commentaryCompleted, object: commentary)
-        case "commentary_failed":
-            Task { @MainActor in
-                generatingCommentary = false
-                commentaryCompletedSections = 0
-                commentaryTotalSections = 0
-                commentaryCurrentSection = nil
-            }
         case "update_started":
             Task { @MainActor in
                 updateStatus = "installing"
@@ -692,10 +625,4 @@ final class AppState: ObservableObject {
         updateMessage = message
     }
 
-    private func applyCommentaryStatus(_ status: CommentaryStatus) {
-        generatingCommentary = status.generating
-        commentaryCompletedSections = status.completedSections ?? 0
-        commentaryTotalSections = status.totalSections ?? 0
-        commentaryCurrentSection = status.currentSection
-    }
 }

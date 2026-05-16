@@ -379,97 +379,8 @@ struct EarnOverridesSaveRequest: Codable {
     let overrides: [EarnOverrideDTO]
 }
 
-// MARK: - AI
-
-struct CommentarySection: Codable, Identifiable {
-    var id: String { title }
-    let title: String
-    let description: String
-}
-
-struct AICommentary: Codable {
-    let date: String
-    let text: String
-    let model: String?
-    let error: String?
-    let sections: [CommentarySection]?
-    let stale: Bool?
-    let staleReason: String?
-}
-
-struct CommentaryStatus: Codable {
-    let generating: Bool
-    let completedSections: Int?
-    let totalSections: Int?
-    let currentSection: String?
-}
-
 struct ErrorMessageResponse: Codable {
     let error: String
-}
-
-struct AIConfig: Codable, Equatable {
-    let configured: Bool
-    let provider: String?
-    let model: String?
-    let baseUrl: String?
-    let hasApiKey: Bool?
-}
-
-struct AIConfigUpdateRequest: Codable {
-    let provider: String
-    var apiKey: String?
-    var model: String?
-    var baseUrl: String?
-}
-
-struct AIProviderField: Codable, Identifiable {
-    var id: String { name }
-    let name: String
-    let required: Bool
-    let secret: Bool?
-    let defaultValue: String?
-    let options: [AIFieldOption]?
-    let hint: String?
-
-    enum CodingKeys: String, CodingKey {
-        case name
-        case required
-        case secret
-        case defaultValue = "default"
-        case options
-        case hint
-    }
-}
-
-struct AIFieldOption: Codable, Identifiable {
-    var id: String { value }
-    let value: String
-    let description: String?
-}
-
-struct AIProviderConfig: Codable, Identifiable {
-    var id: String { type }
-    let type: String
-    let apiKey: String?
-    let apiKeyMasked: Bool?
-    let model: String?
-    let baseUrl: String?
-    let active: Bool?
-    let fields: [AIProviderField]?
-}
-
-struct AIProviderAvailable: Codable, Identifiable {
-    var id: String { type }
-    let type: String
-    let fields: [AIProviderField]
-    let description: String?
-}
-
-struct SettingsResponse: Codable {
-    let aiProviders: [AIProviderConfig]
-    let aiProvidersAvailable: [AIProviderAvailable]
-    let aiReportMemory: String?
 }
 
 
@@ -526,12 +437,6 @@ struct UpdateStatusResponse: Codable {
     let target: String?
     let installedVersions: [String: String]?
     let updatedAt: String?
-}
-
-// MARK: - Report
-
-struct NotifyResponse: Codable {
-    let sent: Bool
 }
 
 // MARK: - Transactions

@@ -189,52 +189,6 @@ struct APIClient {
         return try await request(url: url, method: "GET")
     }
 
-    func getAICommentary() async throws -> AICommentary {
-        let url = APIEndpoints.url(path: APIEndpoints.aiCommentary)
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw APIError.invalidResponse
-        }
-
-        switch httpResponse.statusCode {
-        case 200...299:
-            if let commentary = try? decoder.decode(AICommentary.self, from: data) {
-                return commentary
-            }
-            if let errorResponse = try? decoder.decode(ErrorMessageResponse.self, from: data) {
-                return AICommentary(date: "", text: "", model: nil, error: errorResponse.error, sections: nil, stale: nil, staleReason: nil)
-            }
-            throw APIError.invalidResponse
-        case 404:
-            if let errorResponse = try? decoder.decode(ErrorMessageResponse.self, from: data) {
-                return AICommentary(date: "", text: "", model: nil, error: errorResponse.error, sections: nil, stale: nil, staleReason: nil)
-            }
-            return AICommentary(date: "", text: "", model: nil, error: "No AI commentary cached", sections: nil, stale: nil, staleReason: nil)
-        default:
-            throw APIError.httpStatus(httpResponse.statusCode)
-        }
-    }
-
-    func generateAICommentary() async throws {
-        try await requestVoid(path: APIEndpoints.aiCommentary, method: "POST")
-    }
-
-    func getCommentaryStatus() async throws -> CommentaryStatus {
-        try await request(path: APIEndpoints.aiCommentaryStatus, method: "GET")
-    }
-
-    func getAIConfig() async throws -> AIConfig {
-        try await request(path: APIEndpoints.aiConfig, method: "GET")
-    }
-
-    func updateAIConfig(_ requestBody: AIConfigUpdateRequest) async throws {
-        _ = try await requestVoid(path: APIEndpoints.aiConfig, method: "PUT", body: requestBody)
-    }
-
     func startCollect(source: String?) async throws -> CollectStartResponse {
         let body = CollectStartRequest(source: source)
         return try await request(path: APIEndpoints.collect, method: "POST", body: body)
@@ -242,10 +196,6 @@ struct APIClient {
 
     func getCollectStatus() async throws -> CollectStatus {
         try await request(path: APIEndpoints.collectStatus, method: "GET")
-    }
-
-    func notifyReport() async throws -> NotifyResponse {
-        try await request(path: APIEndpoints.reportNotify, method: "POST")
     }
 
     // MARK: - Transactions
@@ -394,34 +344,6 @@ struct APIClient {
 
     func restartServices() async throws {
         _ = try await requestVoid(path: APIEndpoints.updatesRestart, method: "POST")
-    }
-
-    func getSettings() async throws -> SettingsResponse {
-        try await request(path: APIEndpoints.settings, method: "GET")
-    }
-
-    func updateSettings(_ settings: [String: String]) async throws {
-        _ = try await requestVoid(path: APIEndpoints.settings, method: "PUT", body: settings)
-    }
-
-    func upsertAIProviderFields(type: String, fields: [String: String]) async throws {
-        _ = try await requestVoid(path: APIEndpoints.aiProvider(type), method: "PUT", body: fields)
-    }
-
-    func validateAIProviderConnection(type: String, fields: [String: String]) async throws -> ConnectionValidationResponse {
-        try await requestValidation(path: APIEndpoints.aiProviderValidate(type), method: "POST", body: fields)
-    }
-
-    func activateAIProvider(type: String) async throws {
-        _ = try await requestVoid(path: APIEndpoints.aiProviderActivate(type), method: "POST")
-    }
-
-    func deactivateAIProvider() async throws {
-        _ = try await requestVoid(path: APIEndpoints.aiProvidersDeactivate, method: "POST")
-    }
-
-    func deleteAIProvider(type: String) async throws {
-        _ = try await requestVoid(path: APIEndpoints.aiProvider(type), method: "DELETE")
     }
 
     private func request<T: Decodable>(path: String, method: String, body: Encodable? = nil, timeout: TimeInterval? = nil) async throws -> T {

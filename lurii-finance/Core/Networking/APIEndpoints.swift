@@ -38,20 +38,8 @@ enum APIEndpoints {
     static let earnSummary = "/api/v1/earn/summary"
     static let earnHistory = "/api/v1/earn/history"
 
-    static let aiCommentary = "/api/v1/ai/commentary"
-    static let aiCommentaryStatus = "/api/v1/ai/commentary/status"
-    static let aiConfig = "/api/v1/ai/config"
-    static let aiProviders = "/api/v1/ai/providers"
-    static func aiProvider(_ type: String) -> String { "/api/v1/ai/providers/\(type)" }
-    static func aiProviderValidate(_ type: String) -> String { "/api/v1/ai/providers/\(type)/validate" }
-    static func aiProviderActivate(_ type: String) -> String { "/api/v1/ai/providers/\(type)/activate" }
-    static let aiProvidersDeactivate = "/api/v1/ai/providers/deactivate"
-
     static let collect = "/api/v1/collect"
     static let collectStatus = "/api/v1/collect/status"
-
-    static let reportNotify = "/api/v1/report/notify"
-    static let settings = "/api/v1/settings"
 
     static let updates = "/api/v1/updates"
     static let updatesInstall = "/api/v1/updates/install"
