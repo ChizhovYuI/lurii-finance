@@ -8,8 +8,6 @@ final class TransactionsViewModel: ObservableObject {
     @Published var total: Int = 0
     @Published var isLoading = false
     @Published var errorMessage: String?
-    @Published var isCategorizing = false
-    @Published var categorizationMessage: String?
 
     /// Current month being displayed (e.g. "2026-03").
     @Published var currentMonth: String?
@@ -127,21 +125,6 @@ final class TransactionsViewModel: ObservableObject {
         return displayFmt.string(from: date)
     }
 
-    func runCategorization() {
-        isCategorizing = true
-        categorizationMessage = nil
-
-        Task {
-            do {
-                let result = try await APIClient.shared.runCategorization()
-                self.categorizationMessage = "Categorized \(result.categorized) transactions, detected \(result.transfers) transfers"
-            } catch {
-                self.categorizationMessage = "Categorization failed: \(error.localizedDescription)"
-            }
-            self.isCategorizing = false
-        }
-    }
-
     func updateMetadata(id: Int, category: String?, reviewed: Bool?, notes: String?) {
         Task {
             do {
@@ -182,7 +165,7 @@ final class TransactionsViewModel: ObservableObject {
                 counterpartyAsset: old.counterpartyAsset, counterpartyAmount: old.counterpartyAmount,
                 txId: old.txId, tradeSide: old.tradeSide, description: old.description,
                 metadata: updatedMeta, group: old.group,
-                rawFields: old.rawFields, matchedRule: old.matchedRule,
+                rawFields: old.rawFields,
                 availableCategories: old.availableCategories, availableTypes: old.availableTypes
             )
         }
@@ -219,7 +202,7 @@ final class TransactionsViewModel: ObservableObject {
                 counterpartyAsset: old.counterpartyAsset, counterpartyAmount: old.counterpartyAmount,
                 txId: old.txId, tradeSide: old.tradeSide, description: old.description,
                 metadata: updatedMeta, group: old.group,
-                rawFields: old.rawFields, matchedRule: old.matchedRule,
+                rawFields: old.rawFields,
                 availableCategories: old.availableCategories, availableTypes: old.availableTypes
             )
         }

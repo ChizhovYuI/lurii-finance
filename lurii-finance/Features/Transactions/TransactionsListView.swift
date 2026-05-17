@@ -19,7 +19,6 @@ struct TransactionsListView: View {
     @State private var typePickerTxId: Int?
     @State private var hoverTypeTxId: Int?
     @State private var hoverCategoryTxId: Int?
-    @State private var showRulesSheet = false
 
     private let txTypes = ["all", "deposit", "withdrawal", "spend", "trade", "yield", "dividend", "interest", "fee", "transfer"]
 
@@ -53,13 +52,6 @@ struct TransactionsListView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.leading, DesignTokens.pageContentPadding)
                 }
-
-                if let msg = viewModel.categorizationMessage {
-                    Text(msg)
-                        .font(DesignTokens.captionFont)
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, DesignTokens.pageContentPadding)
-                }
             }
             .padding(.top, DesignTokens.pageContentPadding)
             .padding(.bottom, 24)
@@ -75,29 +67,6 @@ struct TransactionsListView: View {
                 searchField
             }
             ToolbarItem(placement: .automatic) {
-                Button { showRulesSheet = true } label: {
-                    Image(systemName: "list.bullet.indent")
-                }
-                .buttonStyle(.glass)
-                .buttonBorderShape(.capsule)
-                .help("Category rules")
-            }
-            ToolbarItem(placement: .automatic) {
-                Button {
-                    viewModel.runCategorization()
-                } label: {
-                    if viewModel.isCategorizing {
-                        ProgressView().controlSize(.small)
-                    } else {
-                        Image(systemName: "wand.and.stars")
-                    }
-                }
-                .buttonStyle(.glass)
-                .buttonBorderShape(.capsule)
-                .disabled(viewModel.isCategorizing)
-                .help("Auto-categorize transactions")
-            }
-            ToolbarItem(placement: .automatic) {
                 pageControls
             }
         }
@@ -111,10 +80,6 @@ struct TransactionsListView: View {
         .onChange(of: appState.selectedSection) { _, newValue in
             guard newValue == .transactions else { return }
             reload()
-        }
-        .sheet(isPresented: $showRulesSheet) {
-            CategoryRulesView()
-                .frame(width: 700, height: 500)
         }
         .sheet(item: $selectedTransaction) { tx in
             TransactionDetailSheet(
@@ -462,9 +427,6 @@ struct TransactionsListView: View {
                     onCreateCategory: { txType, name in
                         viewModel.createCategory(txType: txType, name: name)
                     },
-                    onRuleSaved: {
-                        viewModel.reloadCurrentMonth()
-                    },
                     onLinkTransfer: { partnerId in
                         viewModel.linkTransfer(txIdA: tx.id, txIdB: partnerId)
                         typePickerTxId = nil
@@ -541,9 +503,6 @@ struct TransactionsListView: View {
                 onCreateCategory: { txType, name in
                     viewModel.createCategory(txType: txType, name: name)
                 },
-                onRuleSaved: {
-                    viewModel.reloadCurrentMonth()
-                },
                 onDone: {
                     categoryPickerTxId = nil
                 }
@@ -605,25 +564,19 @@ private struct TransactionEditPopover: View {
     let onSetType: (String) -> Void
     let onSetCategory: (String) -> Void
     let onCreateCategory: (String, String) -> Void
-    let onRuleSaved: () -> Void
     let onLinkTransfer: (Int) -> Void
     let onDone: () -> Void
 
-    private enum Step { case type, typeRule, category, source, linkTransaction }
+    private enum Step { case type, category, source, linkTransaction }
 
     @State private var step: Step = .type
     @State private var selectedType: String?
     @State private var isAddingCategory = false
     @State private var newCategoryName = ""
-    @State private var isCreatingRule = false
-    @State private var lastTypeRuleField: String?
-    @State private var lastTypeRuleOperator: String?
-    @State private var ruleCategoryForForm: String?
     @State private var transferSources: [String] = []
     @State private var transferCandidates: [TransferCandidate] = []
     @State private var isLoadingCandidates = false
     @State private var rawFields: [String: String]?
-    @State private var matchedRule: CategoryRuleDTO?
     @State private var isLoadingDetail = false
 
     private var effectiveType: String { selectedType ?? tx.resolvedType }
@@ -677,8 +630,6 @@ private struct TransactionEditPopover: View {
             switch step {
             case .type:
                 typeList
-            case .typeRule:
-                typeRuleForm
             case .category:
                 categoryList
             case .source:
@@ -694,8 +645,7 @@ private struct TransactionEditPopover: View {
             if step != .type {
                 Button {
                     switch step {
-                    case .typeRule: step = .type
-                    case .category: step = .typeRule
+                    case .category: step = .type
                     case .source: step = .category
                     case .linkTransaction: step = .source
                     case .type: break
@@ -724,7 +674,6 @@ private struct TransactionEditPopover: View {
     private var stepTitle: String {
         switch step {
         case .type: return "Type"
-        case .typeRule: return "Type Rule"
         case .category: return "Category"
         case .source: return "Source"
         case .linkTransaction: return "Link Transfer"
@@ -762,26 +711,7 @@ private struct TransactionEditPopover: View {
     }
 
     private func advanceAfterType(_ type: String) {
-        step = .typeRule
-    }
-
-    // MARK: - Step 1.5: Type Rule
-
-    private var typeRuleForm: some View {
-        InlineRuleForm(
-            txType: effectiveType,
-            category: "",
-            source: tx.source,
-            rawFields: rawFields,
-            onSaved: {
-                // Capture last type rule hints for the category rule form.
-                let hint = InlineRuleForm.loadLastRule(source: tx.source, isTypeRule: true)
-                lastTypeRuleField = hint?.fieldName
-                lastTypeRuleOperator = hint?.fieldOperator
-                onRuleSaved()
-                advanceToCategory()
-            }
-        )
+        advanceToCategory()
     }
 
     private func advanceToCategory() {
@@ -805,22 +735,7 @@ private struct TransactionEditPopover: View {
 
     private var categoryList: some View {
         Group {
-            if let ruleCat = ruleCategoryForForm, isCreatingRule {
-                InlineRuleForm(
-                    txType: effectiveType,
-                    category: ruleCat,
-                    source: tx.source,
-                    rawFields: rawFields,
-                    hintFieldName: lastTypeRuleField,
-                    hintFieldOperator: lastTypeRuleOperator,
-                    onSaved: {
-                        isCreatingRule = false
-                        ruleCategoryForForm = nil
-                        onRuleSaved()
-                        onDone()
-                    }
-                )
-            } else if filteredCategories.isEmpty {
+            if filteredCategories.isEmpty {
                 Text("No categories for \(effectiveType)")
                     .font(.system(size: 11))
                     .foregroundStyle(.tertiary)
@@ -834,8 +749,7 @@ private struct TransactionEditPopover: View {
                             Task { await loadCandidates() }
                             step = .source
                         } else {
-                            ruleCategoryForForm = cat.category
-                            isCreatingRule = true
+                            onDone()
                         }
                     } label: {
                         HStack {
@@ -869,10 +783,9 @@ private struct TransactionEditPopover: View {
                             onCreateCategory(effectiveType, name)
                             let key = name.lowercased().replacingOccurrences(of: " ", with: "_")
                             onSetCategory(key)
-                            ruleCategoryForForm = key
-                            isCreatingRule = true
                             isAddingCategory = false
                             newCategoryName = ""
+                            onDone()
                         } label: {
                             Image(systemName: "checkmark")
                                 .font(.system(size: 10, weight: .semibold))
@@ -999,20 +912,6 @@ private struct TransactionEditPopover: View {
     @ViewBuilder
     private var rightPanel: some View {
         VStack(alignment: .leading, spacing: 0) {
-            if let matchedRule {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Matched Rule")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                    Text("\(matchedRule.resultCategory) ← \(matchedRule.typeMatch)")
-                        .font(.system(size: 11, design: .monospaced))
-                        .foregroundStyle(.green)
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                Divider()
-            }
-
             if isLoadingDetail {
                 ProgressView()
                     .frame(maxWidth: .infinity)
@@ -1045,12 +944,11 @@ private struct TransactionEditPopover: View {
     // MARK: - Data loading
 
     private func loadDetail() async {
-        guard tx.id > 0, rawFields == nil, matchedRule == nil else { return }
+        guard tx.id > 0, rawFields == nil else { return }
         isLoadingDetail = true
         do {
             let detail = try await APIClient.shared.getTransaction(id: tx.id)
             rawFields = detail.rawFields
-            matchedRule = detail.matchedRule
         } catch {}
         isLoadingDetail = false
     }
@@ -1079,7 +977,7 @@ private struct TransactionEditPopover: View {
                 typeOverride: nil, isInternalTransfer: nil, transferPairId: nil,
                 transferDetectedBy: nil, reviewed: true, notes: nil
             ),
-            group: nil, rawFields: nil, matchedRule: nil, availableCategories: nil, availableTypes: nil
+            group: nil, rawFields: nil, availableCategories: nil, availableTypes: nil
         ),
         TransactionDTO(
             id: 2, date: "2026-03-15", time: "10:15", source: "wise", sourceName: "Wise",
@@ -1091,7 +989,7 @@ private struct TransactionEditPopover: View {
                 typeOverride: nil, isInternalTransfer: nil, transferPairId: nil,
                 transferDetectedBy: nil, reviewed: false, notes: nil
             ),
-            group: nil, rawFields: nil, matchedRule: nil, availableCategories: nil, availableTypes: nil
+            group: nil, rawFields: nil, availableCategories: nil, availableTypes: nil
         ),
         TransactionDTO(
             id: 3, date: "2026-03-15", time: "09:00", source: "wise", sourceName: "Wise",
@@ -1103,7 +1001,7 @@ private struct TransactionEditPopover: View {
                 typeOverride: nil, isInternalTransfer: nil, transferPairId: nil,
                 transferDetectedBy: nil, reviewed: true, notes: nil
             ),
-            group: nil, rawFields: nil, matchedRule: nil, availableCategories: nil, availableTypes: nil
+            group: nil, rawFields: nil, availableCategories: nil, availableTypes: nil
         ),
         TransactionDTO(
             id: 4, date: "2026-03-15", time: "16:45", source: "okx", sourceName: "OKX",
@@ -1111,7 +1009,7 @@ private struct TransactionEditPopover: View {
             counterpartyAsset: nil, counterpartyAmount: nil, txId: nil, tradeSide: "buy",
             description: nil,
             metadata: nil,
-            group: nil, rawFields: nil, matchedRule: nil, availableCategories: nil, availableTypes: nil
+            group: nil, rawFields: nil, availableCategories: nil, availableTypes: nil
         ),
         TransactionDTO(
             id: 5, date: "2026-03-15", time: "11:20", source: "wise", sourceName: "Wise",
@@ -1123,7 +1021,7 @@ private struct TransactionEditPopover: View {
                 typeOverride: nil, isInternalTransfer: true, transferPairId: 6,
                 transferDetectedBy: "auto", reviewed: nil, notes: nil
             ),
-            group: nil, rawFields: nil, matchedRule: nil, availableCategories: nil, availableTypes: nil
+            group: nil, rawFields: nil, availableCategories: nil, availableTypes: nil
         ),
         TransactionDTO(
             id: 6, date: "2026-03-15", time: "16:00", source: "wise", sourceName: "Wise",
@@ -1135,7 +1033,7 @@ private struct TransactionEditPopover: View {
                 typeOverride: nil, isInternalTransfer: nil, transferPairId: nil,
                 transferDetectedBy: nil, reviewed: false, notes: nil
             ),
-            group: nil, rawFields: nil, matchedRule: nil, availableCategories: nil, availableTypes: nil
+            group: nil, rawFields: nil, availableCategories: nil, availableTypes: nil
         ),
     ]
     vm.categories = [

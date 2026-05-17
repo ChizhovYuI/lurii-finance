@@ -56,15 +56,10 @@ enum APIEndpoints {
     static func transactionTransferCandidates(_ id: Int) -> String { "/api/v1/transactions/\(id)/transfer-candidates" }
     static func transactionUnlink(_ id: Int) -> String { "/api/v1/transactions/\(id)/link-transfer" }
     static let transactionLinkTransfer = "/api/v1/transactions/link-transfer"
-    static let transactionCategorize = "/api/v1/transactions/categorize"
     static let transactionReviewQueue = "/api/v1/transactions/review-queue"
     static let transactionCategories = "/api/v1/transactions/categories"
     static func transactionCategory(_ id: Int) -> String { "/api/v1/transactions/\(id)/category" }
     static func transactionType(_ id: Int) -> String { "/api/v1/transactions/\(id)/type" }
-    static let categoryRules = "/api/v1/category-rules"
-    static let categoryRulesPreview = "/api/v1/category-rules/preview"
-    static let categoryRulesReset = "/api/v1/category-rules/reset"
-    static let typeRules = "/api/v1/type-rules"
     static let transactionAnalyticsSummary = "/api/v1/transactions/analytics/summary"
     static let transactionAnalyticsTrends = "/api/v1/transactions/analytics/trends"
 }

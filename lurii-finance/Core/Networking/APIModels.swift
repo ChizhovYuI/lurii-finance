@@ -476,7 +476,6 @@ struct TransactionDTO: Codable, Identifiable {
     let group: TransactionGroupDTO?
     // Detail-only fields (present in GET /transactions/{id}).
     let rawFields: [String: String]?
-    let matchedRule: CategoryRuleDTO?
     let availableCategories: [AvailableCategoryDTO]?
     let availableTypes: [String]?
 
@@ -494,20 +493,6 @@ struct TransactionMetadataDTO: Codable {
     let transferDetectedBy: String?
     let reviewed: Bool?
     let notes: String?
-}
-
-struct CategoryRuleDTO: Codable, Identifiable {
-    let id: Int?
-    let typeMatch: String
-    let typeOperator: String?
-    let fieldName: String?
-    let fieldOperator: String?
-    let fieldValue: String?
-    let source: String?
-    let resultCategory: String
-    let priority: Int?
-    let builtin: Bool?
-    let deleted: Bool?
 }
 
 struct AvailableCategoryDTO: Codable {
@@ -528,49 +513,6 @@ struct SetCategoryResponse: Codable {
 
 struct SetTypeRequest: Codable {
     let type: String
-}
-
-struct TypeRuleCreateRequest: Codable {
-    let resultType: String
-    var fieldName: String?
-    var fieldOperator: String?
-    var fieldValue: String?
-    var source: String = "*"
-}
-
-struct CategoryRuleCreateRequest: Codable {
-    let typeMatch: String
-    let resultCategory: String
-    var typeOperator: String = "eq"
-    var fieldName: String?
-    var fieldOperator: String?
-    var fieldValue: String?
-    var source: String = "*"
-    var priority: Int?
-}
-
-struct RulePreviewResponse: Codable {
-    let affectedCount: Int
-    let sample: [RulePreviewItem]
-}
-
-struct RulePreviewItem: Codable, Identifiable {
-    var id: Int { self.txId }
-    let txId: Int
-    let date: String
-    let source: String
-    let description: String?
-    let currentCategory: String?
-    let newCategory: String
-
-    private enum CodingKeys: String, CodingKey {
-        case txId = "id"
-        case date, source, description, currentCategory, newCategory
-    }
-}
-
-struct ResetRulesRequest: Codable {
-    let source: String?
 }
 
 struct TransactionsListResponse: Codable {
@@ -654,12 +596,5 @@ struct CategoryBreakdownRow: Codable, Identifiable {
     let displayName: String
     let usdValue: String
     let percentage: String?
-}
-
-struct CategorizationResult: Codable {
-    let total: Int
-    let categorized: Int
-    let transfers: Int
-    let aiCategorized: Int
 }
 

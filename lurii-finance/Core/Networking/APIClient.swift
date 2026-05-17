@@ -251,38 +251,6 @@ struct APIClient {
         _ = try await requestVoid(path: APIEndpoints.transactionType(id), method: "PUT", body: SetTypeRequest(type: type))
     }
 
-    func getCategoryRules(source: String? = nil) async throws -> [CategoryRuleDTO] {
-        var queryItems: [URLQueryItem] = []
-        if let source { queryItems.append(URLQueryItem(name: "source", value: source)) }
-        queryItems.append(URLQueryItem(name: "include_deleted", value: "true"))
-        let url = APIEndpoints.url(path: APIEndpoints.categoryRules, queryItems: queryItems)
-        return try await request(url: url, method: "GET")
-    }
-
-    func createCategoryRule(body: CategoryRuleCreateRequest) async throws -> CategoryRuleDTO {
-        try await request(path: APIEndpoints.categoryRules, method: "POST", body: body)
-    }
-
-    func createTypeRule(body: TypeRuleCreateRequest) async throws {
-        _ = try await requestVoid(path: APIEndpoints.typeRules, method: "POST", body: body)
-    }
-
-    func deleteCategoryRule(id: Int) async throws {
-        _ = try await requestVoid(path: "\(APIEndpoints.categoryRules)/\(id)", method: "DELETE")
-    }
-
-    func previewCategoryRule(body: CategoryRuleCreateRequest) async throws -> RulePreviewResponse {
-        try await request(path: APIEndpoints.categoryRulesPreview, method: "POST", body: body)
-    }
-
-    func resetCategoryRules(source: String?) async throws {
-        _ = try await requestVoid(path: APIEndpoints.categoryRulesReset, method: "POST", body: ResetRulesRequest(source: source))
-    }
-
-    func runCategorization() async throws -> CategorizationResult {
-        try await request(path: APIEndpoints.transactionCategorize, method: "POST")
-    }
-
     func uploadStatement(fileData: Data, filename: String = "statement.csv") async throws -> StatementUploadResponse {
         let url = APIEndpoints.url(path: APIEndpoints.statementUpload)
         var request = URLRequest(url: url)

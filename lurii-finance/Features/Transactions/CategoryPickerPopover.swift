@@ -7,22 +7,18 @@ struct CategoryPickerPopover: View {
     let displayName: (String?) -> String
     let onSelect: (String) -> Void
     var onCreateCategory: ((String, String) -> Void)?
-    var onRuleSaved: (() -> Void)?
     var onDone: (() -> Void)?
 
     @State private var rawFields: [String: String]?
-    @State private var matchedRule: CategoryRuleDTO?
     @State private var isLoadingDetail = false
     @State private var isAddingCategory = false
     @State private var newCategoryName = ""
-    @State private var ruleCategory: String?
 
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
             // Left: category list.
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    // Context header: description and source.
                     if let desc = tx.description, !desc.isEmpty {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(desc)
@@ -37,85 +33,71 @@ struct CategoryPickerPopover: View {
                         Divider()
                     }
 
-                    if let ruleCat = ruleCategory {
-                        InlineRuleForm(
-                            txType: tx.resolvedType,
-                            category: ruleCat,
-                            source: tx.source,
-                            rawFields: rawFields,
-                            onSaved: {
-                                ruleCategory = nil
-                                onRuleSaved?()
-                                onDone?()
-                            }
-                        )
-                    } else {
-                        ForEach(categories, id: \.category) { (cat: TransactionCategoryDTO) in
-                            let isSelected = tx.metadata?.category == cat.category
-                            Button {
-                                onSelect(cat.category)
-                                ruleCategory = cat.category
-                            } label: {
-                                HStack {
-                                    Text(cat.displayName)
-                                        .font(.system(size: 12))
-                                        .foregroundStyle(.primary)
-                                    Spacer()
-                                    if isSelected {
-                                        Image(systemName: "checkmark")
-                                            .font(.system(size: 10, weight: .semibold))
-                                            .foregroundStyle(Color.accentColor)
-                                    }
-                                }
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 6)
-                                .contentShape(Rectangle())
-                                .background(isSelected ? Color.accentColor.opacity(0.08) : Color.clear)
-                            }
-                            .buttonStyle(.plain)
-                        }
-
-                        Divider()
-
-                        if isAddingCategory {
-                            HStack(spacing: 6) {
-                                TextField("Category name", text: $newCategoryName)
-                                    .textFieldStyle(.plain)
+                    ForEach(categories, id: \.category) { (cat: TransactionCategoryDTO) in
+                        let isSelected = tx.metadata?.category == cat.category
+                        Button {
+                            onSelect(cat.category)
+                            onDone?()
+                        } label: {
+                            HStack {
+                                Text(cat.displayName)
                                     .font(.system(size: 12))
-                                Button {
-                                    let name = newCategoryName.trimmingCharacters(in: .whitespaces)
-                                    guard !name.isEmpty else { return }
-                                    onCreateCategory?(tx.resolvedType, name)
-                                    let key = name.lowercased().replacingOccurrences(of: " ", with: "_")
-                                    onSelect(key)
-                                    ruleCategory = key
-                                    isAddingCategory = false
-                                    newCategoryName = ""
-                                } label: {
+                                    .foregroundStyle(.primary)
+                                Spacer()
+                                if isSelected {
                                     Image(systemName: "checkmark")
                                         .font(.system(size: 10, weight: .semibold))
+                                        .foregroundStyle(Color.accentColor)
                                 }
-                                .buttonStyle(.plain)
-                                .disabled(newCategoryName.trimmingCharacters(in: .whitespaces).isEmpty)
                             }
                             .padding(.horizontal, 12)
                             .padding(.vertical, 6)
-                        } else {
+                            .contentShape(Rectangle())
+                            .background(isSelected ? Color.accentColor.opacity(0.08) : Color.clear)
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    Divider()
+
+                    if isAddingCategory {
+                        HStack(spacing: 6) {
+                            TextField("Category name", text: $newCategoryName)
+                                .textFieldStyle(.plain)
+                                .font(.system(size: 12))
                             Button {
-                                isAddingCategory = true
+                                let name = newCategoryName.trimmingCharacters(in: .whitespaces)
+                                guard !name.isEmpty else { return }
+                                onCreateCategory?(tx.resolvedType, name)
+                                let key = name.lowercased().replacingOccurrences(of: " ", with: "_")
+                                onSelect(key)
+                                isAddingCategory = false
+                                newCategoryName = ""
+                                onDone?()
                             } label: {
-                                HStack {
-                                    Image(systemName: "plus")
-                                        .font(.system(size: 10, weight: .semibold))
-                                    Text("Add Category")
-                                        .font(.system(size: 12))
-                                }
-                                .foregroundStyle(.secondary)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 6)
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 10, weight: .semibold))
                             }
                             .buttonStyle(.plain)
+                            .disabled(newCategoryName.trimmingCharacters(in: .whitespaces).isEmpty)
                         }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                    } else {
+                        Button {
+                            isAddingCategory = true
+                        } label: {
+                            HStack {
+                                Image(systemName: "plus")
+                                    .font(.system(size: 10, weight: .semibold))
+                                Text("Add Category")
+                                    .font(.system(size: 12))
+                            }
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
             }
@@ -126,21 +108,6 @@ struct CategoryPickerPopover: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    if let matchedRule {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Matched Rule")
-                                .font(.system(size: 10, weight: .semibold))
-                                .foregroundStyle(.secondary)
-                            Text("\(matchedRule.resultCategory) ← \(matchedRule.typeMatch)")
-                                .font(.system(size: 11, design: .monospaced))
-                                .foregroundStyle(.green)
-                        }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-
-                        Divider()
-                    }
-
                     if isLoadingDetail {
                         ProgressView()
                             .frame(maxWidth: .infinity)
@@ -181,30 +148,25 @@ struct CategoryPickerPopover: View {
         displayName: @escaping (String?) -> String,
         onSelect: @escaping (String) -> Void,
         onCreateCategory: ((String, String) -> Void)? = nil,
-        onRuleSaved: (() -> Void)? = nil,
         onDone: (() -> Void)? = nil,
-        previewRawFields: [String: String]? = nil,
-        previewMatchedRule: CategoryRuleDTO? = nil
+        previewRawFields: [String: String]? = nil
     ) {
         self.tx = tx
         self.categories = categories
         self.displayName = displayName
         self.onSelect = onSelect
         self.onCreateCategory = onCreateCategory
-        self.onRuleSaved = onRuleSaved
         self.onDone = onDone
         self._rawFields = State(initialValue: previewRawFields)
-        self._matchedRule = State(initialValue: previewMatchedRule)
-        self._isLoadingDetail = State(initialValue: previewRawFields == nil && previewMatchedRule == nil)
+        self._isLoadingDetail = State(initialValue: previewRawFields == nil)
     }
 
     private func loadDetail() async {
-        guard tx.id > 0, rawFields == nil, matchedRule == nil else { return }
+        guard tx.id > 0, rawFields == nil else { return }
         isLoadingDetail = true
         do {
             let detail = try await APIClient.shared.getTransaction(id: tx.id)
             rawFields = detail.rawFields
-            matchedRule = detail.matchedRule
         } catch {
             // Best-effort; popover still works without detail.
         }
@@ -243,7 +205,6 @@ struct CategoryPickerPopover: View {
             ),
             group: nil,
             rawFields: nil,
-            matchedRule: nil,
             availableCategories: nil,
             availableTypes: nil
         ),
@@ -258,20 +219,7 @@ struct CategoryPickerPopover: View {
             "currency": "EUR",
             "date": "2026-03-15",
             "referenceNumber": "FT26074ABCD1234",
-        ],
-        previewMatchedRule: CategoryRuleDTO(
-            id: 7,
-            typeMatch: "spend",
-            typeOperator: nil,
-            fieldName: "description",
-            fieldOperator: "contains",
-            fieldValue: "LIDL",
-            source: nil,
-            resultCategory: "groceries",
-            priority: 10,
-            builtin: false,
-            deleted: nil
-        )
+        ]
     )
     .padding(24)
 }

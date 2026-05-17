@@ -63,14 +63,7 @@ struct TransactionDetailSheet: View {
                     }
                 }
 
-                // Matched rule and raw fields.
                 if let detail {
-                    if let rule = detail.matchedRule {
-                        GroupBox("Matched Rule") {
-                            matchedRuleView(rule)
-                        }
-                    }
-
                     if let rawFields = detail.rawFields, !rawFields.isEmpty {
                         GroupBox("Raw Fields") {
                             VStack(alignment: .leading, spacing: 6) {
@@ -148,51 +141,6 @@ struct TransactionDetailSheet: View {
             // Detail fetch is best-effort; the sheet still works without it.
         }
         isLoadingDetail = false
-    }
-
-    // MARK: - Matched rule display
-
-    private func matchedRuleView(_ rule: CategoryRuleDTO) -> some View {
-        HStack(alignment: .top, spacing: 4) {
-            Text(rule.resultCategory)
-                .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                .foregroundStyle(.green)
-
-            Text("if type =")
-                .font(.system(size: 11, design: .monospaced))
-                .foregroundStyle(.secondary)
-
-            Text("\"\(rule.typeMatch)\"")
-                .font(.system(size: 11, design: .monospaced))
-                .foregroundStyle(.purple)
-
-            if let field = rule.fieldName, !field.isEmpty,
-               let op = rule.fieldOperator, let val = rule.fieldValue {
-                Text("AND \(field) \(op)")
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                Text("\"\(val)\"")
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundStyle(.purple)
-            }
-
-            if let source = rule.source, source != "*" {
-                Text("[\(source)]")
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundStyle(.blue)
-            }
-
-            Spacer()
-
-            if rule.builtin == true {
-                Text("builtin")
-                    .font(.system(size: 9))
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 4)
-                    .padding(.vertical, 1)
-                    .background(Color.gray.opacity(0.1), in: Capsule())
-            }
-        }
     }
 
     // MARK: - Detail rows
