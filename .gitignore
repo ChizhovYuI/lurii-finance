@@ -11,3 +11,7 @@ DerivedData/
 
 # macOS
 .DS_Store
+
+# Local tooling
+.claude/
+AGENTS.md
