@@ -1,9 +1,12 @@
 import AppKit
 import SwiftUI
 import Combine
+import OSLog
 
 @MainActor
 final class AppState: ObservableObject {
+    private static let logger = Logger(subsystem: "money.lurii.finance", category: "AppState")
+
     private enum UpdateRefreshMode {
         case regular
         case forced
@@ -76,6 +79,9 @@ final class AppState: ObservableObject {
     @Published var collecting: Bool = false
     @Published var collectionProgress: Double = 0
     @Published var collectionMessage: String = ""
+    @Published var valuing: Bool = false
+    @Published var valuationProgress: Double = 0
+    @Published var valuationMessage: String = ""
     @Published var updateStatus: String = "idle"
     @Published var updateInstalling: Bool = false
     @Published var updateProgress: Double = 0
@@ -162,6 +168,11 @@ final class AppState: ObservableObject {
         eventStreamClient.onDisconnect = { [weak self] in
             Task { @MainActor in
                 self?.collecting = false
+                // A dropped socket loses the backfill_completed/failed event, so
+                // clear the indicator; onReconnect re-syncs the true state.
+                self?.valuing = false
+                self?.valuationProgress = 0
+                self?.valuationMessage = ""
                 if self?.updateInstalling == true {
                     self?.updateMessage = "Reconnecting to update service..."
                 }
@@ -170,11 +181,18 @@ final class AppState: ObservableObject {
         eventStreamClient.onReconnect = { [weak self] in
             Task { @MainActor in
                 await self?.syncCollectStatus()
+                await self?.syncValuationStatus()
                 await self?.syncUpdateStatus()
                 await self?.runWebSyncDailyIfNeeded()
             }
         }
         eventStreamClient.connect()
+        // Recover an in-flight valuation started while the app was closed — the
+        // WS only replays live events, and onReconnect fires on reconnects, not
+        // this first connect.
+        Task { @MainActor [weak self] in
+            await self?.syncValuationStatus()
+        }
     }
 
     func stopEventStream() {
@@ -193,6 +211,17 @@ final class AppState: ObservableObject {
         guard let (data, _) = try? await URLSession.shared.data(from: url),
               let status = try? JSONDecoder().decode(CollectStatus.self, from: data) else { return }
         collecting = status.collecting
+    }
+
+    private func syncValuationStatus() async {
+        let url = APIEndpoints.url(path: APIEndpoints.backfillStatus)
+        guard let (data, _) = try? await URLSession.shared.data(from: url),
+              let status = try? JSONDecoder().decode(BackfillStatus.self, from: data) else { return }
+        valuing = status.valuing
+        if !status.valuing {
+            valuationProgress = 0
+            valuationMessage = ""
+        }
     }
 
     func checkForUpdates() async {
@@ -323,6 +352,9 @@ final class AppState: ObservableObject {
         collecting = false
         collectionProgress = 0
         collectionMessage = ""
+        valuing = false
+        valuationProgress = 0
+        valuationMessage = ""
         if updateInstalling {
             updateMessage = "Reconnecting to update service..."
         }
@@ -388,6 +420,40 @@ final class AppState: ObservableObject {
             }
         case "snapshot_updated":
             NotificationCenter.default.post(name: .snapshotUpdated, object: nil)
+        case "backfill_started":
+            Task { @MainActor in
+                valuing = true
+                valuationProgress = 0
+                valuationMessage = "Valuing transactions…"
+            }
+        case "backfill_progress":
+            let current = (payload["current"] as? Double) ?? Double(payload["current"] as? Int ?? 0)
+            let total = (payload["total"] as? Double) ?? Double(payload["total"] as? Int ?? 0)
+            Task { @MainActor in
+                valuing = true
+                if total > 0 {
+                    valuationProgress = clampProgress(current / total)
+                    // Only show counts for a real backlog; a 0/0 no-op keeps the plain label.
+                    valuationMessage = "Valuing transactions… \(Int(current))/\(Int(total))"
+                }
+            }
+        case "backfill_completed":
+            Task { @MainActor in
+                valuing = false
+                valuationProgress = 1
+                valuationMessage = ""
+                // Post after the state reset so observers see valuing == false.
+                // usd_value of transactions changed — refresh PnL/analytics views.
+                NotificationCenter.default.post(name: .valuationCompleted, object: nil)
+            }
+        case "backfill_failed":
+            let error = payload["error"] as? String ?? "unknown error"
+            Self.logger.error("Background valuation failed: \(error, privacy: .public)")
+            Task { @MainActor in
+                valuing = false
+                valuationProgress = 0
+                valuationMessage = ""
+            }
         case "update_started":
             Task { @MainActor in
                 updateStatus = "installing"

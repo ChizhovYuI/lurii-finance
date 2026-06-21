@@ -77,6 +77,10 @@ struct TransactionsListView: View {
         .onReceive(NotificationCenter.default.publisher(for: .collectionCompleted)) { _ in
             reload()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .valuationCompleted)) { _ in
+            // Background valuation rewrote transaction usd_value — refresh the USD column.
+            reload()
+        }
         .onChange(of: appState.selectedSection) { _, newValue in
             guard newValue == .transactions else { return }
             reload()

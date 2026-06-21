@@ -40,6 +40,7 @@ enum APIEndpoints {
 
     static let collect = "/api/v1/collect"
     static let collectStatus = "/api/v1/collect/status"
+    static let backfillStatus = "/api/v1/backfill/status"
 
     static let updates = "/api/v1/updates"
     static let updatesInstall = "/api/v1/updates/install"

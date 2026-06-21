@@ -33,6 +33,11 @@ struct DashboardView: View {
                         .frame(maxWidth: .infinity)
                 }
 
+                if appState.valuing && !appState.collecting {
+                    ValuationIndicator(progress: appState.valuationProgress, message: appState.valuationMessage)
+                        .frame(maxWidth: .infinity)
+                }
+
                 if viewModel.isLoading {
                     ProgressView("Loading portfolio...")
                 } else if let errorMessage = viewModel.errorMessage {
@@ -59,6 +64,9 @@ struct DashboardView: View {
             viewModel.load(range: selectedDateRange)
         }
         .onReceive(NotificationCenter.default.publisher(for: .collectionCompleted)) { _ in
+            viewModel.load(range: selectedDateRange)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .valuationCompleted)) { _ in
             viewModel.load(range: selectedDateRange)
         }
         .onReceive(NotificationCenter.default.publisher(for: .snapshotUpdated)) { _ in

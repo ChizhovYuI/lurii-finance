@@ -394,6 +394,10 @@ struct CollectStatus: Codable {
     let collecting: Bool
 }
 
+struct BackfillStatus: Codable {
+    let valuing: Bool
+}
+
 struct CollectStartResponse: Codable {
     let status: String
 }
