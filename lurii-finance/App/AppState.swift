@@ -97,6 +97,7 @@ final class AppState: ObservableObject {
     private var eventStreamConfigured = false
     private var updateCheckTask: Task<Void, Never>?
     private var appDidBecomeActiveObserver: NSObjectProtocol?
+    private var databaseLockedObserver: NSObjectProtocol?
     private var autoInstallAttemptsByFingerprint: [String: Int] = [:]
     private var autoInstallInFlightFingerprint: String?
     private static let updateCheckInterval: TimeInterval = 3600
@@ -160,6 +161,18 @@ final class AppState: ObservableObject {
                 }
             }
         }
+        if databaseLockedObserver == nil {
+            databaseLockedObserver = NotificationCenter.default.addObserver(
+                forName: .databaseLocked,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                Task { @MainActor in
+                    // A 423 means the local DB is locked — drop to the unlock (login) flow.
+                    self?.markDisconnected()
+                }
+            }
+        }
         eventStreamClient.onMessage = { [weak self] message in
             Task { @MainActor [weak self] in
                 self?.handleEventMessage(message)
@@ -203,6 +216,10 @@ final class AppState: ObservableObject {
         if let appDidBecomeActiveObserver {
             NotificationCenter.default.removeObserver(appDidBecomeActiveObserver)
             self.appDidBecomeActiveObserver = nil
+        }
+        if let databaseLockedObserver {
+            NotificationCenter.default.removeObserver(databaseLockedObserver)
+            self.databaseLockedObserver = nil
         }
     }
 

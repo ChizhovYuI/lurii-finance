@@ -244,8 +244,15 @@ final class TransactionsViewModel: ObservableObject {
             do {
                 let cat = try await APIClient.shared.createCategory(txType: txType, category: key, displayName: name)
                 self.categories.append(cat)
+            } catch APIError.conflict {
+                // Category already exists — the popover already selected it. Refresh the
+                // local list so the existing category is present, and treat this as success.
+                if let refreshed = try? await APIClient.shared.getTransactionCategories() {
+                    self.categories = refreshed
+                }
             } catch {
-                // Silently fail.
+                // Bad tx_type or other backend rejection — surface the message.
+                self.errorMessage = error.localizedDescription
             }
         }
     }

@@ -5,4 +5,6 @@ extension Notification.Name {
     static let valuationCompleted = Notification.Name("valuationCompleted")
     static let snapshotUpdated = Notification.Name("snapshotUpdated")
     static let updateCompleted = Notification.Name("updateCompleted")
+    /// Posted when a data endpoint returns `423 Locked` (SQLCipher DB locked).
+    static let databaseLocked = Notification.Name("databaseLocked")
 }

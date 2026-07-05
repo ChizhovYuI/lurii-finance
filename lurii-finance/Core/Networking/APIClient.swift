@@ -4,6 +4,10 @@ enum APIError: Error, LocalizedError {
     case invalidResponse
     case httpStatus(Int)
     case message(String)
+    /// `409 Conflict` — the resource already exists (e.g. duplicate category).
+    case conflict(String)
+    /// `423 Locked` — the local database is locked (SQLCipher). Routes to the unlock flow.
+    case locked
 
     var errorDescription: String? {
         switch self {
@@ -13,6 +17,10 @@ enum APIError: Error, LocalizedError {
             return "Request failed with status \(code)."
         case let .message(message):
             return message
+        case let .conflict(message):
+            return message
+        case .locked:
+            return "The local database is locked. Unlock it to continue."
         }
     }
 }
@@ -105,10 +113,7 @@ struct APIClient {
             throw APIError.invalidResponse
         }
         guard (200...299).contains(httpResponse.statusCode) else {
-            if let error = try? decoder.decode(ErrorMessageResponse.self, from: data) {
-                throw APIError.message(error.error)
-            }
-            throw APIError.httpStatus(httpResponse.statusCode)
+            throw apiError(statusCode: httpResponse.statusCode, data: data)
         }
     }
 
@@ -262,7 +267,7 @@ struct APIClient {
             throw URLError(.badServerResponse)
         }
         guard (200...299).contains(httpResponse.statusCode) else {
-            throw URLError(.badServerResponse)
+            throw apiError(statusCode: httpResponse.statusCode, data: data)
         }
         return try JSONDecoder().decode(StatementUploadResponse.self, from: data)
     }
@@ -335,7 +340,7 @@ struct APIClient {
             throw APIError.invalidResponse
         }
         guard (200...299).contains(httpResponse.statusCode) else {
-            throw APIError.httpStatus(httpResponse.statusCode)
+            throw apiError(statusCode: httpResponse.statusCode, data: data)
         }
 
         return try decoder.decode(T.self, from: data)
@@ -361,10 +366,24 @@ struct APIClient {
             throw APIError.invalidResponse
         }
         guard (200...299).contains(httpResponse.statusCode) else {
-            if let error = try? decoder.decode(ErrorMessageResponse.self, from: data) {
-                throw APIError.message(error.error)
-            }
-            throw APIError.httpStatus(httpResponse.statusCode)
+            throw apiError(statusCode: httpResponse.statusCode, data: data)
+        }
+    }
+
+    /// Maps a non-2xx response to a typed `APIError`, decoding the backend's
+    /// `{"error": "..."}` body when present. `423` also notifies the app so it can
+    /// route to the unlock flow.
+    private func apiError(statusCode: Int, data: Data) -> APIError {
+        let message = (try? decoder.decode(ErrorMessageResponse.self, from: data))?.error
+        switch statusCode {
+        case 423:
+            NotificationCenter.default.post(name: .databaseLocked, object: nil)
+            return .locked
+        case 409:
+            return .conflict(message ?? "This item already exists.")
+        default:
+            if let message { return .message(message) }
+            return .httpStatus(statusCode)
         }
     }
 
